@@ -4,6 +4,7 @@ from flask import Blueprint, request, jsonify
 from werkzeug.utils import secure_filename
 # backend/app.py
 from pdfProcessing.pdfProcessor import PDFProcessor  # Note the lowercase 'p' in processor
+from pdfProcessing.semanticSearch import SemanticScholar
 from modelFolder.modelRunner import ModelInference
 import os
 # backend/app.py
@@ -12,6 +13,10 @@ from flask_cors import CORS
 import os
 import sys
 import json
+from pathlib import Path
+from flask import Blueprint
+from dotenv import load_dotenv
+import os
 claudeInstruction_extractInfo = """
 Please analyze this scientific paper and extract information in EXACTLY the following format, with NO deviation:
 
@@ -46,8 +51,24 @@ For concepts and methodologies:
 Remember: The exact format is critical for automated processing. Any deviation from this format will cause errors in the system.
 """
 
+
+# ALL API KEYS HANDLED BELOW
+
+# Get the current file's directory
+current_dir = Path(__file__).parent
+# Navigate up to similarity folder
+similarity_root = current_dir.parent
+env_path = similarity_root / '.env.txt'
+
+
 upload_bp = Blueprint('upload', __name__)
-api_key_semantic = "api"
+load_dotenv(env_path)  # Load environment variables from .en
+
+
+api_key_semantic= os.getenv('SEMANTIC_API_KEY')
+api_key_claude = os.getenv('HAIKU_API_KEY')
+
+upload_bp = Blueprint('upload', __name__)
 # Create an upload folder for temporary file storage
 UPLOAD_FOLDER = 'uploads'
 if not os.path.exists(UPLOAD_FOLDER):
@@ -76,6 +97,7 @@ def process_pdf_route():
 
         # Initialize our processor
         processor = PDFProcessor()
+        semanticScholar = SemanticScholar()
         # Will probably have ti chaneg to more generic 'extractPdfInfo', one function extract all necessary info for pdf.
         if functionName == 'extractSeedPaperInfo':
             try:
@@ -86,7 +108,8 @@ def process_pdf_route():
                 # Get Claude's response - this will now be a string
                 pdfTitle_claude = processor.ask_claude(
                     text=entirePDFText,
-                    instruction=claudeInstruction_extractInfo
+                    instruction=claudeInstruction_extractInfo,
+                    api_key=api_key_claude
                 )
                 print('being returned from claude is',pdfTitle_claude)
                 # Extract just the title text from the textblock and clean it up
@@ -95,7 +118,7 @@ def process_pdf_route():
                 pdfInfoStruct = processor.parse_paper_info(pdfInfo)
                 
                 # Now pass the clean title to semantic scholar
-                semanticScholarPaperInfo = processor.return_info_by_title(pdfInfoStruct['title'], api_key_semantic)
+                semanticScholarPaperInfo = semanticScholar.return_info_by_title(pdfInfoStruct['title'], api_key_semantic)
                 # Now search semantic scholar for that paper. If no result returned then
                 # we will form the info we need ourselves using haiku.
                 
@@ -110,16 +133,17 @@ def process_pdf_route():
                 'reference_count': semanticScholarPaperInfo['Reference_Count'],
                 'citations': semanticScholarPaperInfo['Citations'],
                 'references': semanticScholarPaperInfo['References']
-   }
-}
-                
-                print('semanticscholsrinfo',semanticScholarPaperInfo)
-                
-          
+                    },
+                'abstract_info':{
+                    'core_concepts': pdfInfoStruct['core_concepts'],
+                    'core_methodologies': pdfInfoStruct['core_methodologies'],
+                    'related_methodologies': pdfInfoStruct['related_methodologies']
+                }
+                }
         
                 # Clean up and return
                 os.remove(filepath)
-                return jsonify(semanticScholarPaperInfo), 200
+                return jsonify(result), 200
                 
             except Exception as e:
                 error_message = f"Error processing request: {str(e)}"
