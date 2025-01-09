@@ -13,7 +13,6 @@ class ModelInference:
         Args:
             model_path: Path to your .pth model file
         """
-        # Set device (GPU if available, else CPU)
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
         # Load the model
@@ -23,8 +22,7 @@ class ModelInference:
     def load_model(self, model_path: str):
         """Load the trained model from path"""
         try:
-            # Load model architecture (matching your training architecture)
-            model = SiameseNetwork(scibert_size=768)  # Assuming this is your model class
+            model = SiameseNetwork(scibert_size=768)  
             
             # Load the trained weights
             model.load_state_dict(torch.load(model_path, map_location=self.device))
@@ -54,8 +52,8 @@ class ModelInference:
             float: Similarity score between 0 and 1
         """
         try:
-            print('attempting to predict score')
-            with torch.no_grad():  # No need to track gradients for inference
+            # print('attempting to predict score')
+            with torch.no_grad():  
                 # Convert SciBERT embeddings to tensors
                 paper1_scibert = torch.tensor(paper1_SciBert, dtype=torch.float32).unsqueeze(0)
                 paper2_scibert = torch.tensor(paper2_SciBert, dtype=torch.float32).unsqueeze(0)
