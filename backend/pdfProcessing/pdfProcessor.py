@@ -12,6 +12,7 @@ from pathlib import Path
 from flask import Blueprint
 from dotenv import load_dotenv
 import os
+from sklearn.metrics.pairwise import cosine_similarity
 
 
 
@@ -119,10 +120,7 @@ class PDFProcessor:
         
         # Combine words into lines
         text = ' '.join(word['text'] for word in filtered_words)
-        
-        # Debug information
-        # print(f"Body text font size: {body_text_size}")
-        #  print(f"Filtered text: {text[:200]}")
+
         
         return text
 
@@ -243,3 +241,5 @@ class PDFProcessor:
             self.logger.error(f"Error parsing info string: {str(e)}")
             return None
 
+        
+    

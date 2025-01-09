@@ -3,7 +3,11 @@ import React, { useState } from 'react';
 function App() {
   const [selectedFile, setSelectedFile] = useState(null);
   const [processing, setProcessing] = useState(false);
-  const [results, setResults] = useState(null);
+  //  Called initially with a value of null i.e. sets the initial state of results to null
+  // Below format is a special syntax in React that allows you to destructure an array into multiple variables
+  // The first element of the array is the state variable, and the second element is a function that allows you to update the state variable
+  // it is the 'useState' hook which tells the array to be destructured into two variables - x and setX
+  const [results, setPaperData] = useState(null);
 
   const handleFileChange = (event) => {
     const file = event.target.files[0];
@@ -26,21 +30,15 @@ function App() {
         body: formData,
       });
 
-      // const similarityResponse = await fetch('http://localhost:5000/comparePapers', {
-      //   method: 'POST',
-      // });
-     
-      
-
       if (!response.ok) {
         throw new Error('Upload failed');
       }
 
       const data = await response.json();
-      //const similarityScore = await similarityResponse.json();
-      //console.log(similarityScore)
+
       console.log(data)
-      setResults(data);
+      // setsPaper data, triggering the useState hook to update the results state variable
+      setPaperData(data);
     } catch (error) {
       console.error('Error:', error);
       alert('Failed to process the file');
@@ -93,7 +91,24 @@ function App() {
       marginTop: '10px',
       color: '#666',
       fontSize: '14px'
+    },
+    results: {
+      marginTop: '20px',
+      width: '100%',
+      textAlign: 'left'
     }
+  };
+
+  const renderSemanticScholarInfo = (info) => {
+    return (
+      <div>
+        {Object.entries(info).map(([key, value]) => (
+          <div key={key}>
+            <strong>{key}:</strong> {JSON.stringify(value, null, 2)}
+          </div>
+        ))}
+      </div>
+    );
   };
 
   return (
@@ -115,8 +130,10 @@ function App() {
           {processing && <div>Processing...</div>}
           {results && (
             <div style={styles.results}>
-              {/* Display your results here */}
-              <pre>{JSON.stringify(results, null, 2)}</pre>
+              <h3>Semantic Scholar Info:</h3>
+              {renderSemanticScholarInfo(results.semantic_scholar_info)}
+              <h3>Semantic Scholar Abstract Info:</h3>
+              {renderSemanticScholarInfo(results.abstract_info)}
             </div>
           )}
         </div>

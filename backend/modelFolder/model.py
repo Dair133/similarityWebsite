@@ -273,7 +273,7 @@ def train_fold(model, train_loader, val_loader, fold, folders, num_epochs=30, le
     )
     
     # Correct scheduler setup
-    warmup_epochs = 3  # Or use config['warmup_epochs']
+    warmup_epochs = 3  
     warmup_scheduler = torch.optim.lr_scheduler.LinearLR(
         optimizer, 
         start_factor=0.1,

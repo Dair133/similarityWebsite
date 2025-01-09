@@ -1,6 +1,9 @@
 # backend/routes/upload_routes.py
 # APP.py script
 from flask import Blueprint, request, jsonify
+from typing import Dict, Any
+import numpy as np
+import torch
 from werkzeug.utils import secure_filename
 # backend/app.py
 from pdfProcessing.pdfProcessor import PDFProcessor  # Note the lowercase 'p' in processor
@@ -17,6 +20,8 @@ from pathlib import Path
 from flask import Blueprint
 from dotenv import load_dotenv
 import os
+from torch.nn.functional import cosine_similarity
+from transformers import AutoTokenizer, AutoModel
 claudeInstruction_extractInfo = """
 Please analyze this scientific paper and extract information in EXACTLY the following format, with NO deviation:
 
@@ -123,28 +128,79 @@ def process_pdf_route():
                 # we will form the info we need ourselves using haiku.
                 
                 result = {
+                    # Info about seed paper eneterd
                 'title': pdfInfoStruct['title'],
                 'semantic_scholar_info': {
-                'title': semanticScholarPaperInfo['Title'],
-                'authors': semanticScholarPaperInfo['Authors'], 
-                'abstract': semanticScholarPaperInfo['Abstract'],
-                'year': semanticScholarPaperInfo['Year'],
-                'citation_count': semanticScholarPaperInfo['Citation_Count'],
-                'reference_count': semanticScholarPaperInfo['Reference_Count'],
-                'citations': semanticScholarPaperInfo['Citations'],
-                'references': semanticScholarPaperInfo['References']
+                'authors': semanticScholarPaperInfo['authors'], 
+                'abstract': semanticScholarPaperInfo['abstract'],
+                'year': semanticScholarPaperInfo['year'],
+                'citation_count': semanticScholarPaperInfo['citation_count'],
+                'reference_count': semanticScholarPaperInfo['reference_count'],
+                'citations': semanticScholarPaperInfo['citations'],
+                'references': semanticScholarPaperInfo['references']
                     },
                 'abstract_info':{
                     'core_concepts': pdfInfoStruct['core_concepts'],
                     'core_methodologies': pdfInfoStruct['core_methodologies'],
                     'related_methodologies': pdfInfoStruct['related_methodologies']
+                    }
+                
                 }
-                }
+                papersReturnedThroughSearch = []
+                
+                # Now based on the abstract info extracted from the paper we should search semantic scholar for similar papers
+                # Loop below searches semantic scholar using each of the core concepts and returns 5 papers for each of those concepts, if 3 concepts than 15 papers
+                # We store 'search_type' so we can indicate to the user what type of search was done to get this paper and compare its similarity to the seed paper.
+                for concept in pdfInfoStruct['core_concepts']:
+                    similarPapers = semanticScholar.search_papers_on_string(concept, 5, api_key_semantic)
+                    for paper in similarPapers:
+                        semanticPaper = {
+                            'search_type': 'core_concept',
+                            'paper_info': paper
+                        }
+                        papersReturnedThroughSearch.append(semanticPaper)
+                    
+                for methodology in pdfInfoStruct['core_methodologies']:
+                    similarPapers = semanticScholar.search_papers_on_string(methodology, 5, api_key_semantic)
+                    for paper in similarPapers:
+                        semanticPaper = {
+                            'search_type': 'core_methodology',
+                            'paper_info': paper
+                        }
+                        papersReturnedThroughSearch.append(semanticPaper)
+                    
+                for relatedMethodology in pdfInfoStruct['related_methodologies']:
+                    similarPapers = semanticScholar.search_papers_on_string(relatedMethodology, 5, api_key_semantic)
+                    for paper in similarPapers:
+                        semanticPaper = {
+                            'search_type': 'related_methodology',
+                            'paper_info': paper
+                        }
+                        papersReturnedThroughSearch.append(semanticPaper)
+                    
+
+                # Get embedding for seed paper
+                seed_abstract = semanticScholarPaperInfo['abstract']
+                seed_embedding = get_scibert_embedding(seed_abstract, tokenizer, model)
+                semanticScholarPaperInfo['scibert'] = seed_embedding.tolist()
         
+                seedPaper = {
+                    'search_type': 'seed_paper',
+                    'paper_info': semanticScholarPaperInfo
+                }
+                print('seed paper is',seedPaper)
+                similarityResults  = compare_papers(seedPaper, papersReturnedThroughSearch)
+                print('similarity results are',similarityResults)
+                
+                #print('THE ABSTRACT OF THE PAPER IS',papersReturnedThroughSearch[2]['paper_info']['abstract'])
+        
+                
+                
                 # Clean up and return
                 os.remove(filepath)
+                result['similarity_results'] = similarityResults
                 return jsonify(result), 200
-                
+                    
             except Exception as e:
                 error_message = f"Error processing request: {str(e)}"
                 print(f"Detailed error: {error_message}")  # Enhanced error logging
@@ -182,70 +238,169 @@ def create_app():
     
     CORS(app)
     
-    app.register_blueprint(upload_bp)
+     # Load SciBERT model once at startup
+    global tokenizer, model
+    tokenizer = AutoTokenizer.from_pretrained('allenai/scibert_scivocab_uncased')
+    model = AutoModel.from_pretrained('allenai/scibert_scivocab_uncased')
     
+    app.register_blueprint(upload_bp)
     return app
 
 
 
-@upload_bp.route('/comparePapers', methods=['POST'])
-def compare_papers_route():
+def compare_papers(seed_paper, papers_returned_through_search):
+    """
+    Compare seed paper against an array of papers and return complete data structure
+    
+    Args:
+        seed_paper: Dictionary containing the seed paper information
+        papers_returned_through_search: List of papers to compare against
+    
+    Returns:
+        Dictionary containing seed paper and compared papers with similarity scores
+    """
     try:
-        inference = ModelInference("modelFolder/best_model_fold_4.pth")  
+        inference = ModelInference("modelFolder/best_model_fold_4.pth")
+        compared_papers = []
         
-        # Test data with complete 768-dimensional vectors
-        paper1_scibert = [0.7303557395935059, -0.19036521017551422, -0.20561213791370392]  
-        paper2_scibert = [0.1599576771259308, 0.0030540116131305695, -0.7980160713195801]  
+        for paper in papers_returned_through_search:
+            # Calculate comparison metrics
+            metrics = calculate_paper_comparison_metrics(seed_paper, paper, tokenizer, model)
+            
+         # Fix the access structure - need to go through paper_info
+            similarity = inference.predict_similarity(
+                paper1_Citation_Count=seed_paper['paper_info']['citation_count'],  # Changed
+                paper1_Reference_Count=seed_paper['paper_info']['reference_count'], # Changed
+                paper1_SciBert=seed_paper['paper_info'].get('scibert', []),
+                paper2_Citation_Count=paper['paper_info']['citation_count'],  # Note: check if this is citationCount or citation_count
+                paper2_Reference_Count=paper['paper_info'].get('reference_count', 0),
+                paper2_SciBert=paper['paper_info'].get('scibert', []),
+                shared_author_count=metrics['shared_author_count'],
+                shared_reference_count=metrics['shared_reference_count'],
+                shared_citation_count=metrics['shared_citation_count'],
+                reference_cosine=metrics['reference_cosine'],
+                citation_cosine=metrics['citation_cosine'],
+                abstract_cosine=metrics['abstract_cosine']
+            )
+            
+            # Create complete paper entry with original data plus similarity
+            compared_paper = {
+                'search_type': paper['search_type'],
+                'paper_info': paper['paper_info'],
+                'similarity_score': float(similarity),
+                'comparison_metrics': metrics  # Including the comparison metrics for reference
+            }
+            compared_papers.append(compared_paper)
         
-        # Pad vectors to 768 dimensions with zeros for testing
-        paper1_scibert.extend([0.0] * (768 - len(paper1_scibert)))
-        paper2_scibert.extend([0.0] * (768 - len(paper2_scibert)))
-        
-        data = {
-            "paper1_Citation_Count": 59,
-            "paper1_Reference_Count": 82,
-            "paper1_SciBert": paper1_scibert,
-            "paper2_Citation_Count": 161,
-            "paper2_Reference_Count": 0,
-            "paper2_SciBert": paper2_scibert,
-            "shared_author_count": 0,
-            "shared_reference_count": 3,
-            "shared_citation_count": 3,
-            "reference_cosine": 0.014613731,
-            "citation_cosine": 0.725575944,
-            "abstract_cosine": 0.5472629
+        # Create complete result structure
+        result = {
+            'seed_paper': {
+                'search_type': 'seed_paper',
+                'paper_info': seed_paper
+            },
+            'compared_papers': compared_papers
         }
-
-        # Add debugging prints
-        print("Starting prediction...")
-        print(f"SciBERT dimensions: {len(data['paper1_SciBert'])}, {len(data['paper2_SciBert'])}")
         
-        similarity = inference.predict_similarity(
-            paper1_Citation_Count=data['paper1_Citation_Count'],
-            paper1_Reference_Count=data['paper1_Reference_Count'],
-            paper1_SciBert=data['paper1_SciBert'],
-            paper2_Citation_Count=data['paper2_Citation_Count'],
-            paper2_Reference_Count=data['paper2_Reference_Count'],
-            paper2_SciBert=data['paper2_SciBert'],
-            shared_author_count=data['shared_author_count'],
-            shared_reference_count=data['shared_reference_count'],
-            shared_citation_count=data['shared_citation_count'],
-            reference_cosine=data['reference_cosine'],
-            citation_cosine=data['citation_cosine'],
-            abstract_cosine=data['abstract_cosine']
-        )
-        
-        print('Similarity score:', similarity)
-        return jsonify({'similarityScore': float(similarity)}), 200
+        return result
         
     except Exception as e:
-        print(f"Error occurred: {str(e)}")  # Add this for debugging
-        return jsonify({'error': str(e)}), 500
+        print(f"Error occurred during paper comparison: {str(e)}")
+        raise
 
 
-
+def calculate_paper_comparison_metrics(seed_paper: Dict[str, Any], comparison_paper: Dict[str, Any], tokenizer ,model) -> Dict[str, Any]:
+     try:
+         
+        metrics = {
+            'shared_author_count': 0,
+            'shared_reference_count': 0,
+            'shared_citation_count': 0,
+            'reference_cosine': 0.0,
+            'citation_cosine': 0.0,
+            'abstract_cosine': 0.0
+        }
+        
+        # Define abstracts at the top of the function
+        print("DEBUG: Seed paper keys:", seed_paper.keys())
+        print("DEBUG: Seed paper info keys:", seed_paper['paper_info'].keys())
+        print("DEBUG: Comparison paper keys:", comparison_paper.keys())
+        print("DEBUG: Comparison paper info keys:", comparison_paper['paper_info'].keys())
+        seed_abstract = seed_paper['paper_info']['abstract']
+        comp_abstract = comparison_paper['paper_info'].get('abstract', '')
+        
+        # Generate SciBERT embedding for comparison paper
+        comp_embedding = get_scibert_embedding(comp_abstract, tokenizer, model)
+        comparison_paper['paper_info']['scibert'] = comp_embedding.tolist()
+        
+        # Calculate shared authors - authors are already a list
+        seed_authors = set(seed_paper['paper_info'].get('authors', []))
+        comp_authors = set(comparison_paper.get('paper_info', {}).get('authors', []))
+        metrics['shared_author_count'] = len(seed_authors.intersection(comp_authors))
+        
+        # Calculate shared references - references are already a list
+        seed_refs = set(seed_paper['paper_info'].get('references', []))
+        comp_refs = set(comparison_paper.get('paper_info', {}).get('references', []))
+        metrics['shared_reference_count'] = len(seed_refs.intersection(comp_refs))
+        
+        # Calculate shared citations - citations are already a list
+        seed_cites = set(seed_paper['paper_info'].get('citations', []))
+        comp_cites = set(comparison_paper.get('paper_info', {}).get('citations', []))
+        metrics['shared_citation_count'] = len(seed_cites.intersection(comp_cites))
+        
+        # Calculate reference cosine similarity
+        if seed_refs and comp_refs:
+            all_refs = list(seed_refs.union(comp_refs))
+            seed_vec = torch.tensor([1 if ref in seed_refs else 0 for ref in all_refs], dtype=torch.float32)
+            comp_vec = torch.tensor([1 if ref in comp_refs else 0 for ref in all_refs], dtype=torch.float32)
+            metrics['reference_cosine'] = float(cosine_similarity(seed_vec.unsqueeze(0), comp_vec.unsqueeze(0)))
+        
+        # Calculate citation cosine similarity
+        if seed_cites and comp_cites:
+            all_cites = list(seed_cites.union(comp_cites))
+            seed_vec = torch.tensor([1 if cite in seed_cites else 0 for cite in all_cites], dtype=torch.float32)
+            comp_vec = torch.tensor([1 if cite in comp_cites else 0 for cite in all_cites], dtype=torch.float32)
+            metrics['citation_cosine'] = float(cosine_similarity(seed_vec.unsqueeze(0), comp_vec.unsqueeze(0)))
+        
+        # Calculate abstract cosine similarity
+        if seed_abstract and comp_abstract:
+            seed_words = seed_abstract.lower().split()
+            comp_words = comp_abstract.lower().split()
+            
+            # Create bag of words vectors
+            all_words = list(set(seed_words + comp_words))
+            seed_vec = torch.tensor([seed_words.count(word) for word in all_words], dtype=torch.float32)
+            comp_vec = torch.tensor([comp_words.count(word) for word in all_words], dtype=torch.float32)
+            
+            if torch.any(seed_vec) and torch.any(comp_vec):
+                metrics['abstract_cosine'] = float(cosine_similarity(seed_vec.unsqueeze(0), comp_vec.unsqueeze(0)))
+            
+        return metrics
+        
+     except Exception as e:
+        print(f"Error calculating paper comparison metrics: {str(e)}")
+        print(f"Seed paper structure: {seed_paper}")
+        print(f"Comparison paper structure: {comparison_paper}")
+        raise
+        
+def get_scibert_embedding(text: str, tokenizer, model) -> torch.Tensor:
+    """Generate SciBERT embedding for a given text"""
+    try:
+        # Tokenize and prepare for model
+        inputs = tokenizer(text, padding=True, truncation=True, return_tensors="pt", max_length=512)
+        
+        # Generate embedding
+        with torch.no_grad():
+            outputs = model(**inputs)
+            # Use CLS token embedding
+            embedding = outputs.last_hidden_state[:, 0, :]
+            
+        return embedding.squeeze().cpu()
+        
+    except Exception as e:
+        print(f"Error generating SciBERT embedding: {str(e)}")
+        # Return zero vector if there's an error
+        return torch.zeros(768)
 
 if __name__ == '__main__':
     app = create_app()
-    
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=5000,)

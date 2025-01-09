@@ -11,12 +11,14 @@ from pathlib import Path
 from flask import Blueprint
 from dotenv import load_dotenv
 import os
-
+import requests
+import time
+from typing import List, Dict, Any
+from torch.nn.functional import cosine_similarity
 
 class SemanticScholar:
 
     def get_paper_details(self, paper_id: str, api_key: str) -> Dict[str, Any]:
-        """Get detailed paper data for a specific paper ID with retry logic"""
         url = f"https://api.semanticscholar.org/graph/v1/paper/{paper_id}"
         headers = {"x-api-key": api_key}
 
@@ -60,10 +62,10 @@ class SemanticScholar:
             headers = {"x-api-key": api_key}
 
             params = {
-                "query": title,
-                "limit": 1,
-                "fields": "paperId"
-            }
+       "query": title,
+              "limit": 1,
+                              "fields": "paperId,title,abstract,year,citationCount,authors.name,citations.title,references.title"
+}
 
             max_retries = 5
             retry_count = 0
@@ -137,12 +139,79 @@ class SemanticScholar:
      references_str = '; '.join(references) if references else 'No references'
 
      return {
-        'Title': paper_data.get('title'),
-        'Authors': authors_str,
-        'Abstract': paper_data.get('abstract'),
-        'Year': paper_data.get('year'),
-        'Citation_Count': paper_data.get('citationCount', 0),
-        'Reference_Count': len(references),
-        'Citations': citations_str,
-        'References': references_str,
+        'title': paper_data.get('title'),
+        'authors': authors_str,
+        'abstract': paper_data.get('abstract'),
+        'year': paper_data.get('year'),
+        'citation_count': paper_data.get('citationCount', 0),
+        'reference_count': len(references),
+        'citations': citations_str,
+        'references': references_str,
     }
+     
+     
+     # Searches semantic scholar based on string entered.
+    def search_papers_on_string(self, query: str, num_results: int, api_key: str) -> List[Dict[str, Any]]:
+  
+     url = "https://api.semanticscholar.org/graph/v1/paper/search"
+     headers = {"x-api-key": api_key}
+     fields = "title,abstract,year,citationCount,authors.name,citations.title,references.title"
+    
+     # Parameters for the search API
+     params = {
+        "query": query,
+        "limit": num_results,
+        "fields": fields
+     }
+    
+     max_retries = 5
+     retry_count = 0
+     retry_delay = 2  # Start with 2-second delay
+
+     while retry_count < max_retries:
+        try:
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()  # Raise an HTTPError for bad responses (4xx, 5xx)
+            
+            # Return the list of papers
+            data = response.json()
+            papers = data.get("data", [])  # "data" contains the list of papers
+            
+            # Format papers into a simplified array
+            formatted_papers = []
+            for paper in papers:
+                formatted_papers.append({
+    "title": paper.get("title", "N/A"),
+    "abstract": paper.get("abstract", "N/A"),
+    "year": paper.get("year", "N/A"),
+    "citation_count": paper.get("citationCount", 0),
+    "reference_count": paper.get("referenceCount", 0),
+    "authors": [author.get("name", "N/A") for author in paper.get("authors", [])],
+    "citations": [citation.get("title", "N/A") for citation in paper.get("citations", [])],
+    "references": [reference.get("title", "N/A") for reference in paper.get("references", [])]
+})
+            
+            return formatted_papers
+        
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 429:  # Rate limit error
+                retry_count += 1
+                if retry_count == max_retries:
+                    print(f"Failed after {max_retries} retries due to rate limiting.")
+                    return []
+                
+                # Exponential backoff: increase delay each retry
+                wait_time = retry_delay * (2 ** (retry_count - 1))
+                print(f"Rate limit hit, waiting {wait_time} seconds before retry {retry_count}.")
+                time.sleep(wait_time)
+                continue
+            else:
+                print(f"HTTP Error: {e}")
+                return []
+        except Exception as e:
+            print(f"Error: {e}")
+            return []
+        
+        
+        
+        
