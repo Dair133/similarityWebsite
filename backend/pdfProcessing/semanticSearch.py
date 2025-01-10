@@ -15,9 +15,14 @@ import requests
 import time
 from typing import List, Dict, Any
 from torch.nn.functional import cosine_similarity
-
+from concurrent.futures import ThreadPoolExecutor
 class SemanticScholar:
-
+    def __init__(self):
+        self.max_workers = 5
+        self.session = requests.Session()
+        self.base_delay = 0.2  # Base delay between requests
+        
+        
     def get_paper_details(self, paper_id: str, api_key: str) -> Dict[str, Any]:
         url = f"https://api.semanticscholar.org/graph/v1/paper/{paper_id}"
         headers = {"x-api-key": api_key}
@@ -43,7 +48,7 @@ class SemanticScholar:
 
                     # Exponential backoff: increase delay each retry
                     wait_time = retry_delay * (2 ** (retry_count - 1))
-                    print(f"Rate limit hit, waiting {wait_time} seconds before retry {retry_count}")
+                    print(f"Rate limit hit inside get paper details, waiting {wait_time} seconds before retry {retry_count}")
                     time.sleep(wait_time)
                     continue
                 else:
@@ -62,10 +67,10 @@ class SemanticScholar:
             headers = {"x-api-key": api_key}
 
             params = {
-       "query": title,
+              "query": title,
               "limit": 1,
-                              "fields": "paperId,title,abstract,year,citationCount,authors.name,citations.title,references.title"
-}
+              "fields": "paperId,title,abstract,year,citationCount,authors.name,citations.title,references.title"
+            }
 
             max_retries = 5
             retry_count = 0
@@ -86,7 +91,7 @@ class SemanticScholar:
 
                         # Exponential backoff: increase delay each retry
                         wait_time = retry_delay * (2 ** (retry_count - 1))
-                        print(f"Rate limit hit, waiting {wait_time} seconds before retry {retry_count}")
+                        print(f"Rate limit hit in return by title, waiting {wait_time} seconds before retry {retry_count}")
                         time.sleep(wait_time)
                         continue
                     else:
@@ -202,7 +207,7 @@ class SemanticScholar:
                 
                 # Exponential backoff: increase delay each retry
                 wait_time = retry_delay * (2 ** (retry_count - 1))
-                print(f"Rate limit hit, waiting {wait_time} seconds before retry {retry_count}.")
+                print(f"Rate limit hit inside search papers on string, waiting {wait_time} seconds before retry {retry_count}.")
                 time.sleep(wait_time)
                 continue
             else:
@@ -213,5 +218,116 @@ class SemanticScholar:
             return []
         
         
-        
+    def _make_request(self, url: str, headers: Dict, params: Dict = None, max_retries: int = 5) -> Dict:
+     retry_count = 0
+     base_wait_time = 1.5  # Starting wait time
+    
+     while retry_count < max_retries:
+        try:
+            # Small delay to prevent API spam
+            if retry_count == 0:  # Only add base delay on first attempt
+                time.sleep(self.base_delay)
+                
+            response = self.session.get(url, headers=headers, params=params)
+            response.raise_for_status()
+            
+            # If successful, return the data
+            return response.json()
+            
+        except requests.exceptions.HTTPError as e:
+            if e.response.status_code == 429:  # Rate limit hit
+                retry_count += 1
+                if retry_count == max_retries:
+                    print(f"Failed after {max_retries} retries due to rate limiting")
+                    return {'data': []}
+                    
+                # Linear increase in wait time - add 0.5 seconds each retry
+                wait_time = base_wait_time + (0.5 * (retry_count - 1))
+                print(f"Rate limit (429) hit, waiting {wait_time} seconds before retry {retry_count}")
+                time.sleep(wait_time)
+                continue
+            else:
+                # Other HTTP errors, return empty result
+                print(f"HTTP Error: {e.response.status_code}")
+                return {'data': []}
+                
+        except Exception as e:
+            print(f"Request error: {str(e)}")
+            return {'data': []}
+            
+     return {'data': []}
+            
+            
+    def search_papers_parallel(self, search_terms: List[Dict], api_key: str) -> List[Dict]:
+        """Parallel search with better error handling"""
+        def search_single_term(term_info: Dict) -> List[Dict]:
+            try:
+                if not term_info or 'term' not in term_info:
+                    print(f"Invalid term_info: {term_info}")
+                    return []
+                    
+                url = "https://api.semanticscholar.org/graph/v1/paper/search"
+                headers = {"x-api-key": api_key}
+                fields = "title,abstract,year,citationCount,authors.name,citations.title,references.title"
+                
+                params = {
+                    "query": term_info['term'],
+                    "limit": 5,
+                    "fields": fields
+                }
+                
+                # print(f"Searching for term: {term_info['term']}")
+                result = self._make_request(url, headers, params)
+                
+                if not result:
+                    print(f"No result for term: {term_info['term']}")
+                    return []
+                    
+                papers_data = result.get('data', [])
+                # print(f"Found {len(papers_data)} papers for term: {term_info['term']}")
+                
+                formatted_papers = []
+                for paper in papers_data:
+                    if not paper:
+                        continue
+                        
+                    paper_info = {
+                        "search_type": term_info['type'],
+                        "paper_info": {
+                            "title": paper.get("title", "N/A"),
+                            "abstract": paper.get("abstract", "N/A"),
+                            "year": paper.get("year", "N/A"),
+                            "citation_count": paper.get("citationCount", 0),
+                            "reference_count": paper.get("referenceCount", 0),
+                            "authors": [author.get("name", "N/A") for author in paper.get("authors", [])],
+                            "citations": [citation.get("title", "N/A") for citation in paper.get("citations", [])],
+                            "references": [reference.get("title", "N/A") for reference in paper.get("references", [])]
+                        }
+                    }
+                    formatted_papers.append(paper_info)
+                
+                return formatted_papers
+                
+            except Exception as e:
+                print(f"Error processing term {term_info.get('term', 'unknown')}: {str(e)}")
+                return []  # Return empty list on error
+
+        try:
+            # Validate input
+            if not search_terms:
+                print("No search terms provided")
+                return []
+                
+            print(f"Starting parallel search with {len(search_terms)} terms")
+            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+                all_results = list(executor.map(search_single_term, search_terms))
+            
+            # Flatten and filter results
+            flattened = [paper for sublist in all_results if sublist for paper in sublist]
+            print(f"Total papers found: {len(flattened)}")
+            return flattened
+            
+        except Exception as e:
+            print(f"Error in search_papers_parallel: {str(e)}")
+            return []  # Return empty list instead of None
         

@@ -24,6 +24,7 @@ from dotenv import load_dotenv
 import os
 from torch.nn.functional import cosine_similarity
 from transformers import AutoTokenizer, AutoModel
+from concurrent.futures import ThreadPoolExecutor
 claudeInstruction_extractInfo = """
 Please analyze this scientific paper and extract information in EXACTLY the following format, with NO deviation:
 
@@ -157,33 +158,37 @@ def process_pdf_route():
                 # Loop below searches semantic scholar using each of the core concepts and returns 5 papers for each of those concepts, if 3 concepts than 15 papers
                 # We store 'search_type' so we can indicate to the user what type of search was done to get this paper and compare its similarity to the seed paper.
                 startTime = time.time()
+                # In your app.py route
+                semanticScholar = SemanticScholar()
+
+                # Prepare all search terms
+                search_terms = []
+
+                # Add core concepts
                 for concept in pdfInfoStruct['core_concepts']:
-                    similarPapers = semanticScholar.search_papers_on_string(concept, 5, api_key_semantic)
-                    for paper in similarPapers:
-                        semanticPaper = {
-                            'search_type': 'core_concept',
-                            'paper_info': paper
-                        }
-                        papersReturnedThroughSearch.append(semanticPaper)
-                    
+                    search_terms.append({
+                        'term': concept,
+                        'type': 'core_concept'
+                    })
+
+                # Add methodologies
                 for methodology in pdfInfoStruct['core_methodologies']:
-                    similarPapers = semanticScholar.search_papers_on_string(methodology, 5, api_key_semantic)
-                    for paper in similarPapers:
-                        semanticPaper = {
-                            'search_type': 'core_methodology',
-                            'paper_info': paper
-                        }
-                        papersReturnedThroughSearch.append(semanticPaper)
-                    
-                for relatedMethodology in pdfInfoStruct['related_methodologies']:
-                    similarPapers = semanticScholar.search_papers_on_string(relatedMethodology, 5, api_key_semantic)
-                    for paper in similarPapers:
-                        semanticPaper = {
-                            'search_type': 'related_methodology',
-                            'paper_info': paper
-                        }
-                        papersReturnedThroughSearch.append(semanticPaper)
-                endTime = time.time()   
+                    search_terms.append({
+                        'term': methodology,
+                        'type': 'core_methodology'
+                    })
+
+                # Add related methodologies
+                for methodology in pdfInfoStruct['related_methodologies']:
+                    search_terms.append({
+                        'term': methodology,
+                        'type': 'related_methodology'
+                    })
+
+                # Do all searches in parallel
+                startTime = time.time()
+                papersReturnedThroughSearch = semanticScholar.search_papers_parallel(search_terms, api_key_semantic)
+                endTime = time.time()
                 print(f"Time taken for searching using core techniques: {endTime - startTime} seconds")          
                 metricsCalculator = MetricsCalculator()
 
@@ -198,12 +203,17 @@ def process_pdf_route():
                 }
                 # Compare seed paper against all papers returned through search
                 startTime = time.time()
+                print("Comparing papers...")
                 similarityResults  = compare_papers(seedPaper, papersReturnedThroughSearch)
+                print("Finished comparing papers")
                 endTime = time.time()
                 print(f"Time taken for comparison: {endTime - startTime} seconds")
                 
                 # From returned papers and their simlarity score, get only relatively similar papers
+                startTime = time.time()
                 relativelySimilarPapers = metricsCalculator.get_relatively_similar_papers(similarityResults['compared_papers'])
+                endTime = time.time()
+                print(f"Time taken for filtering similar papers: {endTime - startTime} seconds")
                 similarityResults['compared_papers'] = relativelySimilarPapers
         
                 
@@ -274,34 +284,28 @@ def create_app():
     return app
 
 
-
+# This function should probably be moved to another file????//
 def compare_papers(seed_paper, papers_returned_through_search):
-    """
-    Compare seed paper against an array of papers and return complete data structure
-    
-    Args:
-        seed_paper: Dictionary containing the seed paper information
-        papers_returned_through_search: List of papers to compare against
-    
-    Returns:
-        Dictionary containing seed paper and compared papers with similarity scores
-    """
     try:
         inference = ModelInference("modelFolder/best_model_fold_4.pth")
-        compared_papers = []
-        
         metricCalculator = MetricsCalculator()
         
-        for paper in papers_returned_through_search:
-            # Calculate comparison metrics
-            metrics = metricCalculator.calculate_paper_comparison_metrics(seed_paper, paper, tokenizer, model)
-            
-         # Fix the access structure - need to go through paper_info
+        # Get all metrics in parallel
+        metrics_list = metricCalculator.process_papers_parallel(
+            seed_paper, 
+            papers_returned_through_search,
+            tokenizer, 
+            model
+        )
+        
+        compared_papers = []
+        # Process the results
+        for paper, metrics in zip(papers_returned_through_search, metrics_list):
             similarity = inference.predict_similarity(
-                paper1_Citation_Count=seed_paper['paper_info']['citation_count'],  # Changed
-                paper1_Reference_Count=seed_paper['paper_info']['reference_count'], # Changed
+                paper1_Citation_Count=seed_paper['paper_info']['citation_count'],
+                paper1_Reference_Count=seed_paper['paper_info']['reference_count'],
                 paper1_SciBert=seed_paper['paper_info'].get('scibert', []),
-                paper2_Citation_Count=paper['paper_info']['citation_count'],  # Note: check if this is citationCount or citation_count
+                paper2_Citation_Count=paper['paper_info']['citation_count'],
                 paper2_Reference_Count=paper['paper_info'].get('reference_count', 0),
                 paper2_SciBert=paper['paper_info'].get('scibert', []),
                 shared_author_count=metrics['shared_author_count'],
@@ -312,25 +316,21 @@ def compare_papers(seed_paper, papers_returned_through_search):
                 abstract_cosine=metrics['abstract_cosine']
             )
             
-            # Create complete paper entry with original data plus similarity
             compared_paper = {
                 'search_type': paper['search_type'],
                 'paper_info': paper['paper_info'],
                 'similarity_score': float(similarity),
-                'comparison_metrics': metrics  # Including the comparison metrics for reference
+                'comparison_metrics': metrics
             }
             compared_papers.append(compared_paper)
         
-        # Create complete result structure
-        result = {
+        return {
             'seed_paper': {
                 'search_type': 'seed_paper',
                 'paper_info': seed_paper
             },
             'compared_papers': compared_papers
         }
-        
-        return result
         
     except Exception as e:
         print(f"Error occurred during paper comparison: {str(e)}")
@@ -342,4 +342,4 @@ def compare_papers(seed_paper, papers_returned_through_search):
 
 if __name__ == '__main__':
     app = create_app()
-    app.run(debug=True, host='0.0.0.0', port=5000,use_reloader=False)
+    app.run(debug=True, host='0.0.0.0', port=5000,use_reloader=True)
