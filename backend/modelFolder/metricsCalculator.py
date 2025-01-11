@@ -22,7 +22,9 @@ from dotenv import load_dotenv
 import os
 from torch.nn.functional import cosine_similarity
 from transformers import AutoTokenizer, AutoModel
-
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.decomposition import TruncatedSVD
+from sklearn.metrics.pairwise import cosine_similarity
 from concurrent.futures import ThreadPoolExecutor
 import threading
 from typing import List, Dict, Any
@@ -31,7 +33,7 @@ import torch
 class MetricsCalculator:
     def __init__(self):
         self.batch_size = 8
-        self.max_workers = 4  # Adjust based on your CPU
+        self.max_workers = 4  
         self.thread_local = threading.local()
         
     def _process_single_paper(self, args) -> Dict:
@@ -103,7 +105,6 @@ class MetricsCalculator:
             return torch.zeros(768)
 
     def calculate_paper_comparison_metrics(self, seed_paper: Dict[str, Any], comparison_paper: Dict[str, Any], tokenizer, model) -> Dict[str, Any]:
-        """Calculate metrics with optimizations"""
         try:
             metrics = {
                 'shared_author_count': 0,
@@ -137,11 +138,28 @@ class MetricsCalculator:
                 'shared_citation_count': len(seed_cites & comp_cites)
             })
             
+            # Convert lists of strings to one long string for references and citations
+            seed_references = ' '.join(seed_info.get('references', [])) if isinstance(seed_info.get('references', []), list) else seed_info.get('references', '')
+            comp_references = ' '.join(paper_info.get('references', [])) if isinstance(paper_info.get('references', []), list) else paper_info.get('references', '')
+            seed_citations = ' '.join(seed_info.get('citations', [])) if isinstance(seed_info.get('citations', []), list) else seed_info.get('citations', '')
+            comp_citations = ' '.join(paper_info.get('citations', [])) if isinstance(paper_info.get('citations', []), list) else paper_info.get('citations', '')
+            
             # Calculate cosine similarities in parallel
-            if seed_refs and comp_refs:
-                metrics['reference_cosine'] = self._calculate_set_similarity(seed_refs, comp_refs)
-            if seed_cites and comp_cites:
-                metrics['citation_cosine'] = self._calculate_set_similarity(seed_cites, comp_cites)
+            if seed_references and comp_references:
+                # print('calculating cosines for refs', seed_references, comp_references)
+                metrics['reference_cosine'] = self.calculate_text_cosine(seed_references, comp_references)
+            if seed_citations and comp_citations:
+                # print('calculating cosines for cites', seed_citations, comp_citations)
+                metrics['citation_cosine'] = self.calculate_text_cosine(seed_citations, comp_citations)
+            
+            # Calculate abstract cosine similarity
+            seed_abstract = seed_info.get('abstract', '')
+            comp_abstract = paper_info.get('abstract', '')
+            if seed_abstract and comp_abstract:
+                # print('calculating cosines for abstracts', seed_abstract, comp_abstract)
+                metrics['abstract_cosine'] = self.calculate_text_cosine(seed_abstract, comp_abstract)
+                
+            # print('cosines are ', metrics['reference_cosine'], metrics['citation_cosine'])
             
             return metrics
             
@@ -149,16 +167,29 @@ class MetricsCalculator:
             print(f"Error in metrics calculation: {str(e)}")
             raise
 
-    def _calculate_set_similarity(self, set1: frozenset, set2: frozenset) -> float:
-        """Optimized set similarity calculation"""
-        if not set1 or not set2:
-            return 0.0
-        intersection = len(set1 & set2)
-        if intersection == 0:
-            return 0.0
-        return intersection / (len(set1) * len(set2)) ** 0.5
-        
 
+        
+    def calculate_text_cosine(self, text1, text2):
+     """Calculate cosine similarity between two text strings using TF-IDF."""
+     if not isinstance(text1, str) or not isinstance(text2, str):
+        print('text1 and text2 are not strings, they are ', type(text1), type(text2))
+        return 0
+    
+    # Clean and validate texts
+     text1 = text1.strip().lower()
+     text2 = text2.strip().lower()
+     if not text1 or not text2:
+        print('text1 or text2 is empty')
+        return 0
+    
+    # Use TF-IDF for cosine similarity
+     try:
+        vectorizer = TfidfVectorizer().fit([text1, text2])
+        vectors = vectorizer.transform([text1, text2])
+        return cosine_similarity(vectors[0], vectors[1])[0][0]
+     except Exception as e:
+        print(f"Error in text cosine calculation: {str(e)}")
+        return 0
 
 
 

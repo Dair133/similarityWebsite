@@ -25,46 +25,58 @@ import os
 from torch.nn.functional import cosine_similarity
 from transformers import AutoTokenizer, AutoModel
 from concurrent.futures import ThreadPoolExecutor
+
 claudeInstruction_extractInfo = """
-Please analyze this scientific paper and extract information in EXACTLY the following format, with NO deviation:
+Analyze this scientific paper and extract information in EXACTLY the following format, with NO deviation:
 
-TITLE:'[Insert the main research title - not journal name, section headers, or running headers]';
-CORE_CONCEPTS:[concept1],[concept2],[concept3];
-CORE_METHODOLOGIES:[method1],[method2],[method3];
-RELATED_METHODOLOGIES:[method1],[method2],[method3];
+TITLE:'[Insert the main research title - not journal name, section headers, or running headers]';CORE_CONCEPTS:[concept1],[concept2],[concept3];CORE_METHODOLOGIES:[method1],[method2],[method3];RELATED_METHODOLOGIES:[method1],[method2],[method3];
 
-Important formatting rules:
-1. Everything must be on one line
-2. Use semicolons (;) to separate major sections
-3. Use commas (,) to separate items within sections
-4. Do not use bullet points
-5. Do not use line breaks
-6. Include square brackets around each individual item
-7. No spaces between commas and next item
-8. Use capital letters at beginning of each , i.e. Medicine,Biology, this info will be printed and shoul look presentable
-Example of correct format:
-TITLE:'Ozone therapy mitigates parthanatos after ischemic stroke';CORE_CONCEPTS:[ischemic stroke],[ozone therapy],[neural recovery];CORE_METHODOLOGIES:[brain imaging],[blood analysis],[behavioral testing];RELATED_METHODOLOGIES:[drug delivery],[tissue oxygenation],[neural monitoring];
+Important Formatting Rules:
+ONLY RETURN A MAXIMUM OF 2 ENTRIES FOR EACH OF CORE CONCEPTS, CORE METHODOLOGIES, AND RELATED METHODOLOGIES
+Everything must be on one line
+Use semicolons (;) to separate major sections
+Use commas (,) to separate items within sections
+Do not use bullet points
+Do not use line breaks
+Include square brackets around each individual item
+No spaces between commas and the next item
+Use capital letters at the beginning of each word, i.e., Medicine,Biology
+This information will be used for automated systems and must remain presentable
+Key Objectives:
+Accuracy To The Paper:
+Extract only information that is explicitly mentioned or strongly implied in the paper.
+Ensure terms align with the paper's content without adding unrelated material.
+Searchability For Similar Papers:
+Select terms and phrases that are likely to retrieve similar or related papers when used as search queries.
+DO NOT INCLUDE GENERAL TERMS THAT WOULD RETURN PAPERS UNRELATED TO THE RESEARCH. SUCH AS COVID -19, PANDEMIC, ETC.
+Be concise and consistent with terminology used in the field.
+Core Concepts:
+Identify the central ideas or themes of the research.
+Ensure selected concepts describe both the topic and its broader context.
+Core Methodologies:
+Highlight the primary research methods explicitly mentioned in the paper.
+Focus on methods fundamental to the research outcomes.
+Related Methodologies:
+Include auxiliary or secondary methods related to the core methodologies, even if not directly central to the research.
 
-For the title:
-- Extract only the primary research title
-- Exclude journal names, section headers, or running headers
-- If no title is found, return 'Title not found'
-
+For the TITLE:
+example: TITLE:'A Novel Approach to Treating Cancer';Core Concepts:[concept1],[concept2];Core Methodologies:[method1],[method2];Related Methodologies:[method1],[method2];
+Extract only the main research title.
+Exclude journal names, section headers, or running headers.
+If no title is found, return 'Title Not Found'.
 For concepts and methodologies:
-- List in order of importance
-- Be specific but concise
-- Use consistent terminology
-- Include only items explicitly mentioned or directly implied in the paper
+
+List in order of importance.
+Be specific but concise.
+Ensure terms are relevant to the paper’s content.
+Select terms that, when searched, will return similar or related papers.
 
 Remember: The exact format is critical for automated processing. Any deviation from this format will cause errors in the system.
 """
 
 
-# ALL API KEYS HANDLED BELOW
 
-# Get the current file's directory
 current_dir = Path(__file__).parent
-# Navigate up to similarity folder
 similarity_root = current_dir.parent
 env_path = similarity_root / '.env.txt'
 
@@ -132,6 +144,7 @@ def process_pdf_route():
                 print(f"Time taken for semantic scholar search: {endTime - startTime} seconds")
                 # Now search semantic scholar for that paper. If no result returned then
                 # we will form the info we need ourselves using haiku.
+                
                 
                 result = {
                     # Info about seed paper eneterd
@@ -214,14 +227,13 @@ def process_pdf_route():
                 relativelySimilarPapers = metricsCalculator.get_relatively_similar_papers(similarityResults['compared_papers'])
                 endTime = time.time()
                 print(f"Time taken for filtering similar papers: {endTime - startTime} seconds")
-                similarityResults['compared_papers'] = relativelySimilarPapers
         
                 
                 
                 # Clean up and return
                 os.remove(filepath)
-                result['similarity_results'] = similarityResults
-                result['test'] = papersReturnedThroughSearch
+                result['similarity_results'] = relativelySimilarPapers
+                result['test'] = similarityResults
                 finishingTime = time.time()
                 print(f"Entire function took: {finishingTime - entireFuncionTime} seconds")
                 return jsonify(result), 200
@@ -243,7 +255,7 @@ def process_pdf_route():
         # Log the full error with traceback
         import traceback
         error_msg = f"Error processing PDF: {str(e)}\nTraceback:\n{traceback.format_exc()}"
-        print(error_msg)  # This will show in your Flask console
+        print(error_msg)  
         
         # Clean up file if it exists
         if filepath and os.path.exists(filepath):
@@ -287,7 +299,7 @@ def create_app():
 # This function should probably be moved to another file????//
 def compare_papers(seed_paper, papers_returned_through_search):
     try:
-        inference = ModelInference("modelFolder/best_model_fold_4.pth")
+        inference = ModelInference("modelFolder/balanced_model.pth")
         metricCalculator = MetricsCalculator()
         
         # Get all metrics in parallel

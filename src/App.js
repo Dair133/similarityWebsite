@@ -134,6 +134,15 @@ function App() {
               {renderSemanticScholarInfo(results.semantic_scholar_info)}
               <h3>Semantic Scholar Abstract Info:</h3>
               {renderSemanticScholarInfo(results.abstract_info)}
+              <h3>Similar Papers</h3>
+              <ul>
+                {results.similarity_results.map((paper, index) => (
+                  <li key={index}>
+                    <strong>Title: {paper.title}</strong>Paper ID: {paper.id} - Similarity Score: {paper.similarity_score}<br></br>
+                    <p>Abstract:{paper.paper_info.abstract}</p> 
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </div>
