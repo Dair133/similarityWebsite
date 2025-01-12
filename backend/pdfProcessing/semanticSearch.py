@@ -259,75 +259,97 @@ class SemanticScholar:
             
             
     def search_papers_parallel(self, search_terms: List[Dict], api_key: str) -> List[Dict]:
-        """Parallel search with better error handling"""
-        def search_single_term(term_info: Dict) -> List[Dict]:
-            try:
-                if not term_info or 'term' not in term_info:
-                    print(f"Invalid term_info: {term_info}")
-                    return []
-                    
-                url = "https://api.semanticscholar.org/graph/v1/paper/search"
-                headers = {"x-api-key": api_key}
-                fields = "title,abstract,year,citationCount,authors.name,citations.title,references.title"
-                
-                params = {
-                    "query": term_info['term'],
-                    "limit": 5,
-                    "fields": fields
-                }
-                
-                # print(f"Searching for term: {term_info['term']}")
-                result = self._make_request(url, headers, params)
-                
-                if not result:
-                    print(f"No result for term: {term_info['term']}")
-                    return []
-                    
-                papers_data = result.get('data', [])
-                # print(f"Found {len(papers_data)} papers for term: {term_info['term']}")
-                
-                formatted_papers = []
-                for paper in papers_data:
-                    if not paper:
-                        continue
-                        
-                    paper_info = {
-                        "search_type": term_info['type'],
-                        "paper_info": {
-                            "title": paper.get("title", "N/A"),
-                            "abstract": paper.get("abstract", "N/A"),
-                            "year": paper.get("year", "N/A"),
-                            "citation_count": paper.get("citationCount", 0),
-                            "reference_count": paper.get("referenceCount", 0),
-                            "authors": [author.get("name", "N/A") for author in paper.get("authors", [])],
-                            "citations": [citation.get("title", "N/A") for citation in paper.get("citations", [])],
-                            "references": [reference.get("title", "N/A") for reference in paper.get("references", [])]
-                        }
-                    }
-                    formatted_papers.append(paper_info)
-                
-                return formatted_papers
-                
-            except Exception as e:
-                print(f"Error processing term {term_info.get('term', 'unknown')}: {str(e)}")
-                return []  # Return empty list on error
-
+     """
+     Parallel search that tracks which terms found which papers
+     Returns papers with information about which search terms found them
+     """
+     def search_single_term(term_info: Dict) -> List[Dict]:
         try:
-            # Validate input
-            if not search_terms:
-                print("No search terms provided")
+            if not term_info or 'term' not in term_info:
+                print(f"Invalid term_info: {term_info}")
                 return []
                 
-            print(f"Starting parallel search with {len(search_terms)} terms")
-            with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-                all_results = list(executor.map(search_single_term, search_terms))
+            url = "https://api.semanticscholar.org/graph/v1/paper/search"
+            headers = {"x-api-key": api_key}
+            fields = "title,abstract,year,citationCount,authors.name,citations.title,references.title"
             
-            # Flatten and filter results
-            flattened = [paper for sublist in all_results if sublist for paper in sublist]
-            print(f"Total papers found: {len(flattened)}")
-            return flattened
+            params = {
+                "query": term_info['term'],
+                "limit": 5,
+                "fields": fields
+            }
+            
+            result = self._make_request(url, headers, params)
+            
+            if not result:
+                print(f"No result for term: {term_info['term']}")
+                return []
+                
+            papers_data = result.get('data', [])
+            
+            formatted_papers = []
+            for paper in papers_data:
+                if not paper:
+                    continue
+                    
+                # Create a source info dictionary to track where this paper came from
+                source_info = {
+                    "search_term": term_info['term'],
+                    "search_type": term_info['type']
+                }
+                
+                paper_info = {
+                    "source_info": source_info,  # Add the source tracking information
+                    "paper_info": {
+                        "title": paper.get("title", "N/A"),
+                        "abstract": paper.get("abstract", "N/A"),
+                        "year": paper.get("year", "N/A"),
+                        "citation_count": paper.get("citationCount", 0),
+                        "reference_count": paper.get("referenceCount", 0),
+                        "authors": [author.get("name", "N/A") for author in paper.get("authors", [])],
+                        "citations": [citation.get("title", "N/A") for citation in paper.get("citations", [])],
+                        "references": [reference.get("title", "N/A") for reference in paper.get("references", [])]
+                    }
+                }
+                formatted_papers.append(paper_info)
+            
+            return formatted_papers
             
         except Exception as e:
-            print(f"Error in search_papers_parallel: {str(e)}")
-            return []  # Return empty list instead of None
+            print(f"Error processing term {term_info.get('term', 'unknown')}: {str(e)}")
+            return []
+
+     try:
+        # Validate input
+        if not search_terms:
+            print("No search terms provided")
+            return []
+            
+        print(f"Starting parallel search with {len(search_terms)} terms")
+        with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
+            all_results = list(executor.map(search_single_term, search_terms))
+        
+        # Flatten and filter results
+        flattened = [paper for sublist in all_results if sublist for paper in sublist]
+        
+        # Group papers by title to handle duplicates found by multiple terms
+        papers_by_title = {}
+        for paper in flattened:
+            title = paper['paper_info']['title']
+            if title not in papers_by_title:
+                papers_by_title[title] = paper
+                papers_by_title[title]['source_info'] = [paper['source_info']]
+            else:
+                # If we've seen this paper before, add the new source info
+                papers_by_title[title]['source_info'].append(paper['source_info'])
+        
+        # Convert back to list
+        final_papers = list(papers_by_title.values())
+        
+        print(f"Total unique papers found: {len(final_papers)}")
+        return final_papers
+        
+     except Exception as e:
+        print(f"Error in search_papers_parallel: {str(e)}")
+        return []
         

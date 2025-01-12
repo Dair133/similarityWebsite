@@ -25,6 +25,7 @@ function App() {
       const formData = new FormData();
       formData.append('file', file);
       formData.append('functionName', 'extractSeedPaperInfo');
+      formData.append('pdfPath', file.name);
       const response = await fetch('http://localhost:5000/process-pdf', {
         method: 'POST',
         body: formData,
@@ -138,7 +139,8 @@ function App() {
               <ul>
                 {results.similarity_results.map((paper, index) => (
                   <li key={index}>
-                    <strong>Title: {paper.title}</strong>Paper ID: {paper.id} - Similarity Score: {paper.similarity_score}<br></br>
+                    <strong>Title: {paper.title}</strong>Paper ID: {paper.id} - <strong>Similarity Score: </strong>{paper.similarity_score}<br></br>
+                    <strong>Source Info: </strong>{paper.source_info[0].search_term}{paper.source_info[0].search_type}
                     <p>Abstract:{paper.paper_info.abstract}</p> 
                   </li>
                 ))}

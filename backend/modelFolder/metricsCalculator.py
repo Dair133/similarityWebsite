@@ -193,15 +193,12 @@ class MetricsCalculator:
 
 
 
-    def get_relatively_similar_papers(self,papers):
-     # Extract scores for analysis
-     scores = [p['similarity_score'] for p in papers]
-     
-     # If we have less than 2 papers, just return them all
-     if len(scores) < 2:
+    def get_relatively_similar_papers(self, papers, min_results=5, max_results=20):
+    # If we have very few papers, return them all
+     if len(papers) <= min_results:
         return papers
         
-     # Find natural breaks in the data
+    # Sort papers by similarity score
      sorted_papers = sorted(papers, key=lambda x: x['similarity_score'], reverse=True)
      sorted_scores = [p['similarity_score'] for p in sorted_papers]
     
@@ -209,19 +206,84 @@ class MetricsCalculator:
      gaps = [sorted_scores[i] - sorted_scores[i+1] for i in range(len(sorted_scores)-1)]
     
      if len(gaps) > 0:
-        # Find the largest gap in the top 75% of papers
-        consider_until = max(int(len(gaps) * 0.75), 1)  # Consider at least first gap
+        # Consider a larger portion of papers for gap analysis (90%)
+        consider_until = max(int(len(gaps) * 0.9), min_results)
         largest_gap = max(gaps[:consider_until])
         gap_index = gaps.index(largest_gap)
         
-        # If the gap is significant (more than 5% of the score range)
-        score_range = max(scores) - min(scores)
-        if largest_gap > score_range * 0.05:
-            return sorted_papers[:gap_index + 1]
+        # Make gap significance threshold more lenient (3%)
+        score_range = max(sorted_scores) - min(sorted_scores)
+        if largest_gap > score_range * 0.03:
+            # Ensure we return at least min_results papers
+            result_count = max(gap_index + 1, min_results)
+            result_count = min(result_count, max_results)  # But not more than max_results
+            return sorted_papers[:result_count]
         else:
-            # If no significant gap, use statistical approach
-            mean = np.mean(scores)
-            std = np.std(scores)
-            return [p for p in papers if p['similarity_score'] > (mean + 0.25 * std)]
+            # More lenient statistical approach
+            mean = np.mean(sorted_scores)
+            std = np.std(sorted_scores)
+            
+            # Try increasingly lenient thresholds until we get enough results
+            for threshold_multiplier in [0.0, -0.25, -0.5, -0.75, -1.0]:
+                threshold = mean + threshold_multiplier * std
+                filtered_papers = [p for p in sorted_papers if p['similarity_score'] > threshold]
+                
+                if len(filtered_papers) >= min_results:
+                    # If we have enough papers, return them (up to max_results)
+                    return filtered_papers[:max_results]
+            
+            # If we still don't have enough papers, just return top min_results
+            return sorted_papers[:min_results]
     
-     return papers
+    # If no gaps (unlikely), return top papers up to max_results
+     return sorted_papers[:max_results]
+ 
+ 
+ 
+ 
+ 
+    def apply_source_weights(self,papers: List[Dict]) -> List[Dict]:
+    # Define weights for different search types
+     weights = {
+        'core_concept': 1.3,         
+        'core_methodology': 1.2,   
+        'related_methodology': 0.9,  
+        'abstract_concept': 0.8,      
+        'cross_domain_applications': 0.7,  
+        'theoretical_foundation': 0.8, 
+        'analogous_problems': 0.7    
+    }
+    
+     weighted_papers = []
+     for paper in papers:
+        # Make a copy of the paper to avoid modifying the original
+        weighted_paper = paper.copy()
+        
+        # Get the source_info list from the paper
+        sources = paper.get('source_info', [])
+        
+        if sources:
+            # Find the highest weight among all sources that found this paper
+            # We use the highest weight because if a paper was found through
+            # multiple searches, we want to give it the benefit of its strongest connection
+            max_weight = max(
+                weights.get(source['search_type'], 1.0) 
+                for source in sources
+            )
+            
+            # Apply the weight to the similarity score
+            original_score = paper.get('similarity_score', 0)
+            weighted_paper['similarity_score'] = original_score * max_weight
+            
+            # Store the weight used for transparency
+            weighted_paper['applied_weight'] = max_weight
+        
+        weighted_papers.append(weighted_paper)
+    
+    # Sort papers by adjusted similarity score
+     weighted_papers.sort(
+        key=lambda x: x.get('similarity_score', 0),
+        reverse=True
+    )
+    
+     return weighted_papers

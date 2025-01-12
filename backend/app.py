@@ -11,6 +11,7 @@ from pdfProcessing.pdfProcessor import PDFProcessor  # Note the lowercase 'p' in
 from pdfProcessing.semanticSearch import SemanticScholar
 from modelFolder.modelRunner import ModelInference
 from modelFolder.metricsCalculator import MetricsCalculator
+from pdfProcessing.SearchTermCache import SearchTermCache
 import os
 # backend/app.py
 from flask import Flask
@@ -19,6 +20,7 @@ import os
 import sys
 import json
 from pathlib import Path
+from datetime import datetime
 from flask import Blueprint
 from dotenv import load_dotenv
 import os
@@ -26,55 +28,50 @@ from torch.nn.functional import cosine_similarity
 from transformers import AutoTokenizer, AutoModel
 from concurrent.futures import ThreadPoolExecutor
 
-claudeInstruction_extractInfo = """
-Analyze this scientific paper and extract information in EXACTLY the following format, with NO deviation:
+claudeInstruction_extractInfo = """Given a scientific paper, you must perform a DETERMINISTIC analysis by following these strict steps in order. Your output must be EXACTLY consistent across multiple runs.
 
-TITLE:'[Insert the main research title - not journal name, section headers, or running headers]';CORE_CONCEPTS:[concept1],[concept2],[concept3];CORE_METHODOLOGIES:[method1],[method2],[method3];RELATED_METHODOLOGIES:[method1],[method2],[method3];
+1. First, identify ONLY the main topic and core findings from the abstract.
 
-Important Formatting Rules:
-ONLY RETURN A MAXIMUM OF 2 ENTRIES FOR EACH OF CORE CONCEPTS, CORE METHODOLOGIES, AND RELATED METHODOLOGIES
-Everything must be on one line
-Use semicolons (;) to separate major sections
-Use commas (,) to separate items within sections
-Do not use bullet points
-Do not use line breaks
-Include square brackets around each individual item
-No spaces between commas and the next item
-Use capital letters at the beginning of each word, i.e., Medicine,Biology
-This information will be used for automated systems and must remain presentable
-Key Objectives:
-Accuracy To The Paper:
-Extract only information that is explicitly mentioned or strongly implied in the paper.
-Ensure terms align with the paper's content without adding unrelated material.
-Searchability For Similar Papers:
-Select terms and phrases that are likely to retrieve similar or related papers when used as search queries.
-DO NOT INCLUDE GENERAL TERMS THAT WOULD RETURN PAPERS UNRELATED TO THE RESEARCH. SUCH AS COVID -19, PANDEMIC, ETC.
-Be concise and consistent with terminology used in the field.
-Core Concepts:
-Identify the central ideas or themes of the research.
-Ensure selected concepts describe both the topic and its broader context.
-Core Methodologies:
-Highlight the primary research methods explicitly mentioned in the paper.
-Focus on methods fundamental to the research outcomes.
-Related Methodologies:
-Include auxiliary or secondary methods related to the core methodologies, even if not directly central to the research.
+2. Then, systematically extract concepts following these exact definitions:
+CORE_CONCEPTS: Only concepts explicitly mentioned in the abstract/title, THESE SHOULD SPECIFIC TO THE TOPIC OF THE PAPER AND SHOULD NOT BE GENERAL CONCEPTS which could be applied to multitple subjects
+CORE_METHODOLOGIES: Only methods directly described as being used
+RELATED_METHODOLOGIES: Standard methods in the field that logically connect
+ABSTRACT_CONCEPTS: Fundamental principles (max 3) that underlie the work
+CROSS_DOMAIN: Major fields (max 3) where similar principles apply
+THEORETICAL_FOUNDATIONS: Base theories (max 3) that the work builds on
+ANALOGOUS_PROBLEMS: Specific problems (max 3) with similar structure
 
-For the TITLE:
-example: TITLE:'A Novel Approach to Treating Cancer';Core Concepts:[concept1],[concept2];Core Methodologies:[method1],[method2];Related Methodologies:[method1],[method2];
-Extract only the main research title.
-Exclude journal names, section headers, or running headers.
-If no title is found, return 'Title Not Found'.
-For concepts and methodologies:
+3. You MUST output in this exact format with NO variations:
+TITLE: [paper title];
+CORE_CONCEPTS: [only concepts from abstract, comma-separated];
+CORE_METHODOLOGIES: [only described methods, comma-separated];
+RELATED_METHODOLOGIES: [standard field methods, comma-separated];
+ABSTRACT_CONCEPTS: [max 3 principles, comma-separated];
+CROSS_DOMAIN: [max 3 fields, comma-separated];
+THEORETICAL_FOUNDATIONS: [max 3 theories, comma-separated];
+ANALOGOUS_PROBLEMS: [max 3 problems, comma-separated];
 
-List in order of importance.
-Be specific but concise.
-Ensure terms are relevant to the paper’s content.
-Select terms that, when searched, will return similar or related papers.
+Rules for deterministic output:
+- Use ONLY information explicitly stated in the paper
+- Limit each section to 3 items maximum
+- Always order items alphabetically within each section
+- Use consistent, standardized terminology
+- No explanatory text or variations
+- No optional or variable content
+- Strict semicolon and comma usage
 
-Remember: The exact format is critical for automated processing. Any deviation from this format will cause errors in the system.
+Example for consistency (examining a quantum mechanics paper):
+TITLE: Quantum State Measurement;
+CORE_CONCEPTS: measurement uncertainty, quantum states, wave function collapse;
+CORE_METHODOLOGIES: interferometry, state preparation, wave function analysis;
+RELATED_METHODOLOGIES: density matrix estimation, quantum tomography, state reconstruction;
+ABSTRACT_CONCEPTS: measurement theory, quantum mechanics, wave-particle duality;
+CROSS_DOMAIN: communication systems, optical computing, signal processing;
+THEORETICAL_FOUNDATIONS: linear algebra, quantum theory, statistical mechanics;
+ANALOGOUS_PROBLEMS: classical wave interference, noise filtering, signal detection;
+
+Any deviation from this format or inconsistency across runs is an error. ANY DEVIATION AT ALL IN THE DETERMINISTIC ANSWERS IS AN ERROR AND WILL RESULT IN A NON FUNCITONAL SYSTEM.
 """
-
-
 
 current_dir = Path(__file__).parent
 similarity_root = current_dir.parent
@@ -102,7 +99,8 @@ def process_pdf_route():
     
     file = request.files['file']
     functionName = request.form.get('functionName')
-    
+    pdfName = request.form.get('pdfPath')
+    print(pdfName)
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
         
@@ -118,6 +116,7 @@ def process_pdf_route():
         # Initialize our processor
         processor = PDFProcessor()
         semanticScholar = SemanticScholar()
+        cache = SearchTermCache()
         # Will probably have ti chaneg to more generic 'extractPdfInfo', one function extract all necessary info for pdf.
         if functionName == 'extractSeedPaperInfo':
             entireFuncionTime = time.time()
@@ -126,16 +125,25 @@ def process_pdf_route():
                 if len(entirePDFText) > 10024:
                     entirePDFText = entirePDFText[:8000]
                 
+                
+                # if cache.is_cache_valid(pdfName):
+                #   pdfInfoStruct = cache.get_cached_terms(pdfName)
+                #   return pdfInfoStruct['search_terms']
+                
+                
+                
                 # Get Claude's response - this will now be a string
                 pdfTitle_claude = processor.ask_claude(
-                    text=entirePDFText,
-                    instruction=claudeInstruction_extractInfo,
-                    api_key=api_key_claude
+                      text=entirePDFText,
+                      instruction=claudeInstruction_extractInfo,
+                      api_key=api_key_claude
                 )
-                # Extract just the title text from the textblock and clean it up
+                  # Extract just the title text from the textblock and clean it up
                 pdfInfo = pdfTitle_claude.content[0].text
             
                 pdfInfoStruct = processor.parse_paper_info(pdfInfo)
+                 
+                
                 
                 # Now pass the clean title to semantic scholar
                 startTime = time.time()
@@ -173,32 +181,60 @@ def process_pdf_route():
                 startTime = time.time()
                 # In your app.py route
                 semanticScholar = SemanticScholar()
+                cache = SearchTermCache()
 
                 # Prepare all search terms
                 search_terms = []
 
-                # Add core concepts
                 for concept in pdfInfoStruct['core_concepts']:
                     search_terms.append({
                         'term': concept,
                         'type': 'core_concept'
                     })
-
-                # Add methodologies
                 for methodology in pdfInfoStruct['core_methodologies']:
                     search_terms.append({
                         'term': methodology,
                         'type': 'core_methodology'
                     })
 
-                # Add related methodologies
                 for methodology in pdfInfoStruct['related_methodologies']:
                     search_terms.append({
                         'term': methodology,
                         'type': 'related_methodology'
                     })
+                for abstractConcept in pdfInfoStruct['abstract_concepts']:
+                    search_terms.append({
+                        'term': abstractConcept,
+                        'type': 'abstract_concept'
+                    })
+                for crossDomain in pdfInfoStruct['cross_domain_applications']:
+                    search_terms.append({
+                        'term': crossDomain,
+                        'type': 'cross_domain_applications'
+                    })
+                for theoreticalFoundation in pdfInfoStruct['theoretical_foundations']:
+                    search_terms.append({
+                        'term': theoreticalFoundation,
+                        'type': 'theoretical_foundation'
+                    })
+                for analogousProblems in pdfInfoStruct['analogous_problems']:
+                    search_terms.append({
+                        'term': analogousProblems,
+                        'type': 'analogous_problems'
+                    })
 
-                # Do all searches in parallel
+                    # if not cache.is_cache_valid(pdfName):
+                    #  # Cache the results
+                    #  paper_title = pdfInfoStruct['title']
+                    # # Cache the terms
+                    #  cache.cache_search_terms(
+                    #  pdf_filename=pdfName,
+                    #  paper_title=pdfName
+                    #  search_terms=search_terms
+                    #     )
+                
+         
+    # Do all searches in parallel
                 startTime = time.time()
                 papersReturnedThroughSearch = semanticScholar.search_papers_parallel(search_terms, api_key_semantic)
                 endTime = time.time()
@@ -224,6 +260,7 @@ def process_pdf_route():
                 
                 # From returned papers and their simlarity score, get only relatively similar papers
                 startTime = time.time()
+                relativelySimilarPapers = metricsCalculator.apply_source_weights(similarityResults['compared_papers'])
                 relativelySimilarPapers = metricsCalculator.get_relatively_similar_papers(similarityResults['compared_papers'])
                 endTime = time.time()
                 print(f"Time taken for filtering similar papers: {endTime - startTime} seconds")
@@ -232,6 +269,7 @@ def process_pdf_route():
                 
                 # Clean up and return
                 os.remove(filepath)
+                result['seed_paper'] = seedPaper
                 result['similarity_results'] = relativelySimilarPapers
                 result['test'] = similarityResults
                 finishingTime = time.time()
@@ -327,9 +365,11 @@ def compare_papers(seed_paper, papers_returned_through_search):
                 citation_cosine=metrics['citation_cosine'],
                 abstract_cosine=metrics['abstract_cosine']
             )
-            
+            # Print keys of paper
+            # print(f"Keys of paper: {paper['paper_info'].keys()}")
             compared_paper = {
-                'search_type': paper['search_type'],
+               # 'search_type': paper['search_type'],
+                'source_info': paper['source_info'],
                 'paper_info': paper['paper_info'],
                 'similarity_score': float(similarity),
                 'comparison_metrics': metrics
@@ -355,3 +395,7 @@ def compare_papers(seed_paper, papers_returned_through_search):
 if __name__ == '__main__':
     app = create_app()
     app.run(debug=True, host='0.0.0.0', port=5000,use_reloader=True)
+
+
+
+

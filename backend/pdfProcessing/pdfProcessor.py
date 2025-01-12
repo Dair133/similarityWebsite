@@ -195,51 +195,61 @@ class PDFProcessor:
         
 
     def parse_paper_info(self, info_string: str) -> Dict[str, Any]:
-        try:
-            # Initialize result structure
-            result = {
-                'title': '',
-                'core_concepts': [],
-                'core_methodologies': [],
-                'related_methodologies': []
-            }
+     try:
+        # Initialize expanded result structure
+        result = {
+            'title': '',
+            'core_concepts': [],
+            'core_methodologies': [],
+            'related_methodologies': [],
+            'abstract_concepts': [],     # Higher-level conceptual connections
+            'cross_domain_applications': [], # Applications in other fields
+            'theoretical_foundations': [], # Underlying principles
+            'analogous_problems': []    # Similar problems in different contexts
+        }
 
-            # Split main sections by semicolon
-            sections = info_string.split(';')
+        # Split main sections by semicolon
+        sections = info_string.split(';')
 
-            for section in sections:
-                section = section.strip()
-                
-                # Parse title
-                if section.startswith('TITLE:'):
-                    # Remove TITLE: and any quotes
-                    result['title'] = section[6:].strip("'")
-                    
-                # Parse core concepts    
-                elif section.startswith('CORE_CONCEPTS:'):
-                    # Remove section header and split by comma
-                    concepts = section[13:].strip()
-                    # Remove square brackets and split
-                    concepts = [c.strip('[]') for c in concepts.split(',')]
-                    result['core_concepts'] = [c for c in concepts if c]  # Remove empty strings
-                    
-                # Parse core methodologies    
-                elif section.startswith('CORE_METHODOLOGIES:'):
-                    methods = section[19:].strip()
-                    methods = [m.strip('[]') for m in methods.split(',')]
-                    result['core_methodologies'] = [m for m in methods if m]
-                    
-                # Parse related methodologies    
-                elif section.startswith('RELATED_METHODOLOGIES:'):
-                    rel_methods = section[22:].strip()
-                    rel_methods = [rm.strip('[]') for rm in rel_methods.split(',')]
-                    result['related_methodologies'] = [rm for rm in rel_methods if rm]
-
-            return result
+        for section in sections:
+            section = section.strip()
             
-        except Exception as e:
-            self.logger.error(f"Error parsing info string: {str(e)}")
-            return None
+            if section.startswith('TITLE:'):
+                result['title'] = section[6:].strip("'")
+            elif section.startswith('CORE_CONCEPTS:'):
+                concepts = section[13:].strip()
+                concepts = [c.strip('[]') for c in concepts.split(',')]
+                result['core_concepts'] = [c for c in concepts if c]
+            elif section.startswith('CORE_METHODOLOGIES:'):
+                methods = section[19:].strip()
+                methods = [m.strip('[]') for m in methods.split(',')]
+                result['core_methodologies'] = [m for m in methods if m]
+            elif section.startswith('RELATED_METHODOLOGIES:'):
+                rel_methods = section[22:].strip()
+                rel_methods = [rm.strip('[]') for rm in rel_methods.split(',')]
+                result['related_methodologies'] = [rm for rm in rel_methods if rm]
+            elif section.startswith('ABSTRACT_CONCEPTS:'):
+                abs_concepts = section[17:].strip()
+                abs_concepts = [ac.strip('[]') for ac in abs_concepts.split(',')]
+                result['abstract_concepts'] = [ac for ac in abs_concepts if ac]
+            elif section.startswith('CROSS_DOMAIN:'):
+                cross_domain = section[13:].strip()
+                cross_domain = [cd.strip('[]') for cd in cross_domain.split(',')]
+                result['cross_domain_applications'] = [cd for cd in cross_domain if cd]
+            elif section.startswith('THEORETICAL_FOUNDATIONS:'):
+                foundations = section[23:].strip()
+                foundations = [f.strip('[]') for f in foundations.split(',')]
+                result['theoretical_foundations'] = [f for f in foundations if f]
+            elif section.startswith('ANALOGOUS_PROBLEMS:'):
+                analogies = section[18:].strip()
+                analogies = [a.strip('[]') for a in analogies.split(',')]
+                result['analogous_problems'] = [a for a in analogies if a]
+
+        return result
+            
+     except Exception as e:
+        self.logger.error(f"Error parsing info string: {str(e)}")
+        return None
 
         
     
