@@ -1,4 +1,5 @@
 # Model Runner Scripts
+# THI IS THE OLD ARCHITECTURE MODEL WITH SCIBETAT 90%
 import torch
 from torch import nn
 import torch.nn.functional as F

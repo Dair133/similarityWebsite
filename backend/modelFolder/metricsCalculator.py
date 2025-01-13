@@ -194,90 +194,102 @@ class MetricsCalculator:
 
 
     def get_relatively_similar_papers(self, papers, min_results=5, max_results=20):
-    # If we have very few papers, return them all
-     if len(papers) <= min_results:
-        return papers
-        
-    # Sort papers by similarity score
-     sorted_papers = sorted(papers, key=lambda x: x['similarity_score'], reverse=True)
-     sorted_scores = [p['similarity_score'] for p in sorted_papers]
-    
-     # Calculate gaps between consecutive scores
-     gaps = [sorted_scores[i] - sorted_scores[i+1] for i in range(len(sorted_scores)-1)]
-    
-     if len(gaps) > 0:
-        # Consider a larger portion of papers for gap analysis (90%)
-        consider_until = max(int(len(gaps) * 0.9), min_results)
-        largest_gap = max(gaps[:consider_until])
-        gap_index = gaps.index(largest_gap)
-        
-        # Make gap significance threshold more lenient (3%)
-        score_range = max(sorted_scores) - min(sorted_scores)
-        if largest_gap > score_range * 0.03:
-            # Ensure we return at least min_results papers
-            result_count = max(gap_index + 1, min_results)
-            result_count = min(result_count, max_results)  # But not more than max_results
-            return sorted_papers[:result_count]
+    # First, ensure we have valid similarity scores and can access them
+     try:
+        # Handle both dictionary and list formats
+        if isinstance(papers, list):
+            # Make sure each paper has a similarity_score
+            papers = [p for p in papers if isinstance(p, dict) and 'similarity_score' in p]
         else:
-            # More lenient statistical approach
-            mean = np.mean(sorted_scores)
-            std = np.std(sorted_scores)
+            print("Papers input is not a list, type:", type(papers))
+            return []
             
-            # Try increasingly lenient thresholds until we get enough results
-            for threshold_multiplier in [0.0, -0.25, -0.5, -0.75, -1.0]:
-                threshold = mean + threshold_multiplier * std
-                filtered_papers = [p for p in sorted_papers if p['similarity_score'] > threshold]
+        # If we have very few papers, return them all
+        if len(papers) <= min_results:
+            return papers
+        
+        # Sort papers by similarity score
+        sorted_papers = sorted(papers, key=lambda x: float(x.get('similarity_score', 0)), reverse=True)
+        sorted_scores = [float(p.get('similarity_score', 0)) for p in sorted_papers]
+        
+        # Calculate gaps between consecutive scores
+        gaps = [sorted_scores[i] - sorted_scores[i+1] for i in range(len(sorted_scores)-1)]
+        
+        if len(gaps) > 0:
+            # Consider a larger portion of papers for gap analysis (90%)
+            consider_until = max(int(len(gaps) * 0.9), min_results)
+            largest_gap = max(gaps[:consider_until])
+            gap_index = gaps.index(largest_gap)
+            
+            # Make gap significance threshold more lenient (3%)
+            score_range = max(sorted_scores) - min(sorted_scores)
+            if largest_gap > score_range * 0.03:
+                # Ensure we return at least min_results papers
+                result_count = max(gap_index + 1, min_results)
+                result_count = min(result_count, max_results)  # But not more than max_results
+                return sorted_papers[:result_count]
+            else:
+                # More lenient statistical approach
+                mean = np.mean(sorted_scores)
+                std = np.std(sorted_scores)
                 
-                if len(filtered_papers) >= min_results:
-                    # If we have enough papers, return them (up to max_results)
-                    return filtered_papers[:max_results]
-            
-            # If we still don't have enough papers, just return top min_results
-            return sorted_papers[:min_results]
-    
-    # If no gaps (unlikely), return top papers up to max_results
-     return sorted_papers[:max_results]
+                # Try increasingly lenient thresholds until we get enough results
+                for threshold_multiplier in [0.0, -0.25, -0.5, -0.75, -1.0]:
+                    threshold = mean + threshold_multiplier * std
+                    filtered_papers = [p for p in sorted_papers if float(p.get('similarity_score', 0)) > threshold]
+                    
+                    if len(filtered_papers) >= min_results:
+                        # If we have enough papers, return them (up to max_results)
+                        return filtered_papers[:max_results]
+                
+                # If we still don't have enough papers, just return top min_results
+                return sorted_papers[:min_results]
+        
+        # If no gaps (unlikely), return top papers up to max_results
+        return sorted_papers[:max_results]
+        
+     except Exception as e:
+        print("Error in get_relatively_similar_papers:", str(e))
+        # Add some debug printing
+        print("Papers type:", type(papers))
+        if isinstance(papers, list) and len(papers) > 0:
+            print("First paper type:", type(papers[0]))
+            print("First paper content:", papers[0])
+        return []
  
  
  
  
- 
-    def apply_source_weights(self,papers: List[Dict]) -> List[Dict]:
+    def apply_source_weights(self, papers: List[Dict]) -> Dict:
     # Define weights for different search types
      weights = {
-        'core_concept': 1.3,         
-        'core_methodology': 1.2,   
-        'related_methodology': 0.9,  
-        'abstract_concept': 0.8,      
-        'cross_domain_applications': 0.7,  
-        'theoretical_foundation': 0.8, 
-        'analogous_problems': 0.7    
+        'core_concept': 1.00,         
+        'core_methodology': 1.00,   
+        'related_methodology': 1.00,  
+        'abstract_concept': 0.1,      
+        'cross_domain_applications': 0.1,  
+        'theoretical_foundation': 0.1, 
+        'analogous_problems': 0.1    
     }
     
      weighted_papers = []
      for paper in papers:
-        # Make a copy of the paper to avoid modifying the original
         weighted_paper = paper.copy()
-        
-        # Get the source_info list from the paper
         sources = paper.get('source_info', [])
         
-        if sources:
-            # Find the highest weight among all sources that found this paper
-            # We use the highest weight because if a paper was found through
-            # multiple searches, we want to give it the benefit of its strongest connection
-            max_weight = max(
-                weights.get(source['search_type'], 1.0) 
-                for source in sources
-            )
+        if sources and len(sources) == 1:  # Since each paper has exactly one search type
+            source = sources[0]  # Get the single source
+            weight = weights.get(source['search_type'], 1.0)
             
-            # Apply the weight to the similarity score
+            # print('max weight is ', weight,'for search type', paper.get('source_info', []))
             original_score = paper.get('similarity_score', 0)
-            weighted_paper['similarity_score'] = original_score * max_weight
+            # print('before weight is ', original_score)
             
-            # Store the weight used for transparency
-            weighted_paper['applied_weight'] = max_weight
-        
+            weighted_paper['similarity_score'] = original_score * weight
+            # print('after weight is ', weighted_paper['similarity_score'])
+            
+            weighted_paper['applied_weight'] = weight
+            
         weighted_papers.append(weighted_paper)
     
     # Sort papers by adjusted similarity score
@@ -286,4 +298,5 @@ class MetricsCalculator:
         reverse=True
     )
     
-     return weighted_papers
+    # Return dictionary with 'compared_papers' key
+     return {'compared_papers': weighted_papers}

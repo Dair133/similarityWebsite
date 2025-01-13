@@ -12,6 +12,7 @@ from pdfProcessing.semanticSearch import SemanticScholar
 from modelFolder.modelRunner import ModelInference
 from modelFolder.metricsCalculator import MetricsCalculator
 from pdfProcessing.SearchTermCache import SearchTermCache
+from modelFolder.lowSciBertModelRunner import LowSciBertModelInference  # Import the new model inference class
 import os
 # backend/app.py
 from flask import Flask
@@ -261,7 +262,7 @@ def process_pdf_route():
                 # From returned papers and their simlarity score, get only relatively similar papers
                 startTime = time.time()
                 relativelySimilarPapers = metricsCalculator.apply_source_weights(similarityResults['compared_papers'])
-                relativelySimilarPapers = metricsCalculator.get_relatively_similar_papers(similarityResults['compared_papers'])
+                relativelySimilarPapers = metricsCalculator.get_relatively_similar_papers(relativelySimilarPapers['compared_papers'])
                 endTime = time.time()
                 print(f"Time taken for filtering similar papers: {endTime - startTime} seconds")
         

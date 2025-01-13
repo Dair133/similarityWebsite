@@ -30,7 +30,7 @@ class SemanticScholar:
         fields = "title,abstract,year,citationCount,authors.name,citations.title,references.title"
         url = f"{url}?fields={fields}"
 
-        max_retries = 5
+        max_retries = 7
         retry_count = 0
         retry_delay = 2  # Start with 2 second delay
 
