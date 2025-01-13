@@ -24,3 +24,4 @@ yarn-error.log*
 
 # Python enviorment(api keys)
 .env.txt
+backend/testing/~$seedPaper.xlsx

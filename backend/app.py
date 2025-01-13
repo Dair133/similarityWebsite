@@ -9,10 +9,14 @@ from werkzeug.utils import secure_filename
 # backend/app.py
 from pdfProcessing.pdfProcessor import PDFProcessor  # Note the lowercase 'p' in processor
 from pdfProcessing.semanticSearch import SemanticScholar
-from modelFolder.modelRunner import ModelInference
+
+# Import for model runners
+from modelFolder.modelRunners.modelRunner import ModelInference
+from modelFolder.modelRunners.lowSciBertModelRunner import LowSciBertModelInference  # Import the new model inference class
+
 from modelFolder.metricsCalculator import MetricsCalculator
 from pdfProcessing.SearchTermCache import SearchTermCache
-from modelFolder.lowSciBertModelRunner import LowSciBertModelInference  # Import the new model inference class
+
 import os
 # backend/app.py
 from flask import Flask
@@ -275,7 +279,14 @@ def process_pdf_route():
                 result['test'] = similarityResults
                 finishingTime = time.time()
                 print(f"Entire function took: {finishingTime - entireFuncionTime} seconds")
+                 # Write the result to a file named after the seed paper
+                seed_paper_title = result['title'].replace(' ', '_')
+                output_filename = f"{seed_paper_title}_result.json"
+                with open(output_filename, 'w') as outfile:
+                    json.dump(result, outfile, indent=4)
+                        
                 return jsonify(result), 200
+                   
                     
             except Exception as e:
                 error_message = f"Error processing request: {str(e)}"
