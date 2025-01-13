@@ -3,7 +3,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 import numpy as np
-from modelFolder.modelLowSciBert import SiameseNetwork  # Make sure to import from correct location
+from modelFolder.modelLowSciBert import SiameseNetwork  
 
 class LowSciBertModelInference:
     def __init__(self, model_path: str):
@@ -58,7 +58,6 @@ class LowSciBertModelInference:
                 paper2_scibert = torch.tensor(paper2_SciBert, dtype=torch.float32).unsqueeze(0)
                 
                 # Normalize metadata features
-                # Note: Use same normalization as in training
                 shared_features = torch.tensor([
                     shared_reference_count,
                     reference_cosine,

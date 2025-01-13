@@ -25,7 +25,7 @@ logging.basicConfig(
 
 
 class NTXentLoss(nn.Module):
-    def __init__(self, temperature=0.05):  # Even lower temperature
+    def __init__(self, temperature=0.05): 
         super().__init__()
         self.temperature = temperature
         
@@ -132,7 +132,6 @@ class SiameseNetwork(nn.Module):
     def __init__(self, scibert_size=768):
         super().__init__()
         
-        # Paper encoder - slightly reduce dimensionality but maintain depth
         self.paper_encoder = nn.Sequential(
             nn.Linear(scibert_size, 512),  # Reduced from 768
             nn.LayerNorm(512),
@@ -144,7 +143,6 @@ class SiameseNetwork(nn.Module):
             nn.Dropout(0.15)
         )
         
-        # Metadata encoder - slightly increase importance
         self.metadata_encoder = nn.Sequential(
             nn.Linear(6, 64),  # Increased from 32
             nn.LayerNorm(64),
@@ -157,7 +155,6 @@ class SiameseNetwork(nn.Module):
         self.scibert_weight = nn.Parameter(torch.tensor(0.7))  # Initialize at 70%
         self.metadata_weight = nn.Parameter(torch.tensor(0.3))
         
-        # Comparison module adjusted for new dimensions
         self.comparison_network = nn.Sequential(
             nn.Linear(384 * 2 + 128, 384),  # Adjusted for new dimensions
             nn.LayerNorm(384),
