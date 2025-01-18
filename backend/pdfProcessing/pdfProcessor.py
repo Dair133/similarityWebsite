@@ -4,7 +4,7 @@ import PyPDF2
 from PyPDF2 import PdfReader
 import logging
 import regex as re
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Union
 import pdfplumber
 import time
 import requests
@@ -251,5 +251,57 @@ class PDFProcessor:
         self.logger.error(f"Error parsing info string: {str(e)}")
         return None
 
+    def parse_haiku_output(output: str) -> Dict[str, Union[str, Dict]]:
+     """
+    Parse the output from Claude/Haiku into the same structure as Semantic Scholar output.
+    
+    Args:
+        output (str): Raw output from Claude/Haiku
         
+    Returns:
+        dict: Structured paper information matching Semantic Scholar format
+    """
+    # Split into metadata and analysis sections
+     sections = output.strip().split('\n\n')
+     metadata_section = sections[0]
+     analysis_section = sections[1]
+     
+    # Parse metadata section
+     metadata = {}
+     for line in metadata_section.split('\n')[1:]:  # Skip the "METADATA:" header
+        if ':' in line:
+            key, value = line.split(':', 1)
+            key = key.lower().strip()
+            value = value.replace(';', '').strip()
+            metadata[key] = value
+    
+     # Parse analysis section
+     analysis = {}
+     for line in analysis_section.split('\n')[1:]:  # Skip the "ANALYSIS:" header
+        if ':' in line:
+            key, value = line.split(':', 1)
+            value = value.replace(';', '').strip()
+            if value:  # If not empty
+                analysis[key] = [item.strip() for item in value.split(',')]
+            else:
+                analysis[key] = []
+    
+     # Format in the same structure as semantic scholar output
+     result = {
+        'title': metadata.get('title', ''),
+        'semantic_scholar_info': {
+            'authors': [author.strip() for author in metadata.get('authors', '').split(',') if author.strip()],
+            'abstract': metadata.get('abstract', ''),
+            'year': int(metadata.get('year', 0)),
+            'citation_count': int(metadata.get('citation_count', 0)),
+            'reference_count': int(metadata.get('reference_count', 0)),
+            'citations': [],  # Can't get actual citations without Semantic Scholar
+            'references': []  # Can't get actual references without Semantic Scholar
+        },
+        'analysis': analysis
+    }
+    
+     return result
+
+    
     

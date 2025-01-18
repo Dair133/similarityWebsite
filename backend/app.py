@@ -33,7 +33,7 @@ from torch.nn.functional import cosine_similarity
 from transformers import AutoTokenizer, AutoModel
 from concurrent.futures import ThreadPoolExecutor
 
-claudeInstruction_extractInfo = """Given a scientific paper, you must perform a DETERMINISTIC analysis by following these strict steps in order. Your output must be EXACTLY consistent across multiple runs.
+claudeInstruction_extractTitleMethodInfo = """Given a scientific paper, you must perform a DETERMINISTIC analysis by following these strict steps in order. Your output must be EXACTLY consistent across multiple runs.
 
 1. First, identify ONLY the main topic and core findings from the abstract.
 
@@ -78,6 +78,42 @@ ANALOGOUS_PROBLEMS: classical wave interference, noise filtering, signal detecti
 Any deviation from this format or inconsistency across runs is an error. ANY DEVIATION AT ALL IN THE DETERMINISTIC ANSWERS IS AN ERROR AND WILL RESULT IN A NON FUNCITONAL SYSTEM.
 """
 
+
+claudeInstruction_extractAllInfo = '''Given a scientific paper, perform a DETERMINISTIC analysis by following these strict steps in order. Your output must be EXACTLY consistent across multiple runs.
+
+Output must be in this exact format with two sections separated by a blank line:
+
+METADATA:
+TITLE: [paper title];
+AUTHORS: [comma-separated list of authors];
+YEAR: [publication year];
+ABSTRACT: [paper abstract];
+CITATION_COUNT: [number of citations if available, else 0];
+REFERENCE_COUNT: [number of references if available, else 0];
+
+ANALYSIS:
+CORE_CONCEPTS: [only concepts from abstract, comma-separated];
+CORE_METHODOLOGIES: [only described methods, comma-separated];
+RELATED_METHODOLOGIES: [standard field methods, comma-separated];
+ABSTRACT_CONCEPTS: [max 3 principles, comma-separated];
+CROSS_DOMAIN: [max 3 fields, comma-separated];
+THEORETICAL_FOUNDATIONS: [max 3 theories, comma-separated];
+ANALOGOUS_PROBLEMS: [max 3 problems, comma-separated];
+
+Rules for deterministic output:
+- Use ONLY information explicitly stated in the paper
+- Limit each analysis section to 3 items maximum
+- Always order items alphabetically within each section
+- Use consistent, standardized terminology
+- No explanatory text or variations
+- No optional or variable content
+- Strict semicolon and comma usage
+- All sections must be present even if empty (use empty string)
+Any deviation from this format or inconsistency across runs is an error. ANY DEVIATION AT ALL IN THE DETERMINISTIC ANSWERS IS AN ERROR AND WILL RESULT IN A NON FUNCITONAL SYSTEM.
+'''
+
+
+
 current_dir = Path(__file__).parent
 similarity_root = current_dir.parent
 env_path = similarity_root / '.env.txt'
@@ -87,7 +123,7 @@ upload_bp = Blueprint('upload', __name__)
 load_dotenv(env_path)  # Load environment variables from .en
 
 
-api_key_semantic= os.getenv('SEMANTIC_API_KEY')
+api_key_semantic = os.getenv('SEMANTIC_API_KEY')
 api_key_claude = os.getenv('HAIKU_API_KEY')
 
 upload_bp = Blueprint('upload', __name__)
@@ -98,7 +134,6 @@ if not os.path.exists(UPLOAD_FOLDER):
 
 @upload_bp.route('/process-pdf', methods=['POST'])
 def process_pdf_route():
-   
     if 'file' not in request.files:
         return jsonify({'error': 'No file uploaded'}), 400
     
@@ -106,6 +141,7 @@ def process_pdf_route():
     functionName = request.form.get('functionName')
     pdfName = request.form.get('pdfPath')
     print(pdfName)
+    
     if file.filename == '':
         return jsonify({'error': 'No selected file'}), 400
         
@@ -122,7 +158,8 @@ def process_pdf_route():
         processor = PDFProcessor()
         semanticScholar = SemanticScholar()
         cache = SearchTermCache()
-        # Will probably have ti chaneg to more generic 'extractPdfInfo', one function extract all necessary info for pdf.
+        
+        # Will probably have to change to more generic 'extractPdfInfo', one function extract all necessary info for pdf.
         if functionName == 'extractSeedPaperInfo':
             entireFuncionTime = time.time()
             try:
@@ -130,71 +167,80 @@ def process_pdf_route():
                 if len(entirePDFText) > 10024:
                     entirePDFText = entirePDFText[:8000]
                 
-                
-                # if cache.is_cache_valid(pdfName):
-                #   pdfInfoStruct = cache.get_cached_terms(pdfName)
-                #   return pdfInfoStruct['search_terms']
-                
-                
-                
-                # Get Claude's response - this will now be a string
-                pdfTitle_claude = processor.ask_claude(
-                      text=entirePDFText,
-                      instruction=claudeInstruction_extractInfo,
-                      api_key=api_key_claude
-                )
-                  # Extract just the title text from the textblock and clean it up
+                # Extract title and initial analysis
+                pdfTitle_claude = processor.ask_claude(text=entirePDFText, 
+                                                     instruction=claudeInstruction_extractTitleMethodInfo,
+                                                     api_key=api_key_claude)
                 pdfInfo = pdfTitle_claude.content[0].text
-            
                 pdfInfoStruct = processor.parse_paper_info(pdfInfo)
-                 
                 
-                
-                # Now pass the clean title to semantic scholar
+                # Try Semantic Scholar first
                 startTime = time.time()
-                semanticScholarPaperInfo = semanticScholar.return_info_by_title(pdfInfoStruct['title'], api_key_semantic)
-                endTime = time.time()  
+                semanticScholarPaperInfo = semanticScholar.return_info_by_title(pdfInfoStruct['title'], 
+                                                                              api_key_semantic)
+                endTime = time.time()
                 print(f"Time taken for semantic scholar search: {endTime - startTime} seconds")
-                # Now search semantic scholar for that paper. If no result returned then
-                # we will form the info we need ourselves using haiku.
                 
-                
-                result = {
-                    # Info about seed paper eneterd
-                'title': pdfInfoStruct['title'],
-                'semantic_scholar_info': {
-                'authors': semanticScholarPaperInfo['authors'], 
-                'abstract': semanticScholarPaperInfo['abstract'],
-                'year': semanticScholarPaperInfo['year'],
-                'citation_count': semanticScholarPaperInfo['citation_count'],
-                'reference_count': semanticScholarPaperInfo['reference_count'],
-                'citations': semanticScholarPaperInfo['citations'],
-                'references': semanticScholarPaperInfo['references']
-                    },
-                'abstract_info':{
-                    'core_concepts': pdfInfoStruct['core_concepts'],
-                    'core_methodologies': pdfInfoStruct['core_methodologies'],
-                    'related_methodologies': pdfInfoStruct['related_methodologies']
+                if semanticScholarPaperInfo:
+                    # Use Semantic Scholar data if available
+                    result = {
+                        'title': pdfInfoStruct['title'],
+                        'paper_info': {  
+                            'authors': semanticScholarPaperInfo['authors'],
+                            'abstract': semanticScholarPaperInfo['abstract'],
+                            'year': semanticScholarPaperInfo['year'],
+                            'citation_count': semanticScholarPaperInfo['citation_count'],
+                            'reference_count': semanticScholarPaperInfo['reference_count'],
+                            'citations': semanticScholarPaperInfo['citations'],
+                            'references': semanticScholarPaperInfo['references']
+                        },
+                        'abstract_info': {
+                            'core_concepts': pdfInfoStruct['core_concepts'],
+                            'core_methodologies': pdfInfoStruct['core_methodologies'],
+                            'related_methodologies': pdfInfoStruct['related_methodologies']
+                        }
+                    }
+                else:
+                    # If no Semantic Scholar data, use Haiku analysis
+                    entirePDFText = processor._extract_text(filepath)  # Get full text again if needed
+                    seedPaperInfo = processor.ask_claude(text=entirePDFText, 
+                                                       instruction=claudeInstruction_extractAllInfo, 
+                                                       api_key=api_key_claude)
+                    haikuResults = processor.parse_haiku_output(seedPaperInfo.content[0].text)
+                    
+                    result = {
+                        'title': pdfInfoStruct['title'],
+                        'paper_info': {  # Use Haiku's extracted info
+                            'authors': haikuResults['semantic_scholar_info']['authors'],
+                            'abstract': haikuResults['semantic_scholar_info']['abstract'],
+                            'year': haikuResults['semantic_scholar_info']['year'],
+                            'citation_count': haikuResults['semantic_scholar_info']['citation_count'],
+                            'reference_count': haikuResults['semantic_scholar_info']['reference_count'],
+                            'citations': [],  # Empty list as Haiku can't get actual citations
+                            'references': []  # Empty list as Haiku can't get actual references
+                        },
+                        'abstract_info': {
+                            'core_concepts': pdfInfoStruct['core_concepts'],
+                            'core_methodologies': pdfInfoStruct['core_methodologies'],
+                            'related_methodologies': pdfInfoStruct['related_methodologies']
+                        }
                     }
                 
-                }
                 papersReturnedThroughSearch = []
                 
                 # Now based on the abstract info extracted from the paper we should search semantic scholar for similar papers
-                # Loop below searches semantic scholar using each of the core concepts and returns 5 papers for each of those concepts, if 3 concepts than 15 papers
-                # We store 'search_type' so we can indicate to the user what type of search was done to get this paper and compare its similarity to the seed paper.
+                # Loop below searches semantic scholar using each of the core concepts and returns 5 papers for each of those concepts
+                # if 3 concepts than 15 papers
+                # We store 'search_type' so we can indicate to the user what type of search was done to get this paper
                 startTime = time.time()
-                # In your app.py route
                 semanticScholar = SemanticScholar()
                 cache = SearchTermCache()
 
                 # Prepare all search terms
                 search_terms = []
-
                 for concept in pdfInfoStruct['core_concepts']:
                     search_terms.append({
                         'term': concept,
-                        'type': 'core_concept'
                     })
                 for methodology in pdfInfoStruct['core_methodologies']:
                     search_terms.append({
