@@ -1,0 +1,241 @@
+﻿Model Path: C:\reactOffline\similarity\backend\modelFolder\standardModel.pth
+================================================================================
+
+Seed Paper: Ecological Niche Modeling: An Introduction for Veterinarians and Epidemiologists
+Abstract: Most infectious diseases in animals are not distributed randomly. Instead, diseases in livestock and wildlife are predictable in terms of the geography, time, and species affected. Ecological niche modeling approaches have been crucial to the advancement of our understanding of diversity and diseases distributions. This contribution is an introductory overview to the field of distributional ecology, with emphasis on its application for spatial epidemiology. A new, revised modeling framework is proposed for more detailed and replicable models that account for both the biology of the disease to be modeled and the uncertainty of the data available. Considering that most disease systems need at least two organisms interacting (i.e., host and pathogen), biotic interactions lie at the core of the pathogen's ecological niche. As a result, neglecting interacting organisms in pathogen dynamics (e.g., maintenance, reproduction, and transmission) may limit efforts to forecast disease distributions in veterinary epidemiology. Although limitations of ecological niche modeling are noted, it is clear that the application and value of ecological niche modeling to epidemiology will increase in the future. Potential research lines include the examination of the effects of biotic variables on model performance, assessments of protocols for model calibration in disease systems, and new tools and metrics for robust model evaluation. Epidemiologists aiming to employ ecological niche modeling theory and methods to reconstruct and forecast epidemics should familiarize themselves with ecological literature and must consider multidisciplinary collaborations including veterinarians to develop biologically sound, statistically robust analyses. This review attempts to increase the use of tools from ecology in disease mapping.
+================================================================================
+
+Rank 1:
+Abstract: The conceptual structure of the field of Animal Science (AS) research is examined by means of a longitudinal science mapping analysis. The whole of the AS research field is analysed, revealing its conceptual evolution. To this end, an automatic approach to detecting and visualizing hidden themes or topics and their evolution across a consecutive span of years was applied to AS publications of the JCR category 'Agriculture, Dairy & Animal Science' during the period 1945-2011. This automatic approach was based on a coword analysis and combines performance analysis and science mapping. To observe the conceptual evolution of AS, six consecutive periods were defined: 1945-1969, 1970-1979, 1980-1989, 1990-1999, 2000-2005 and 2006-2011. Research in AS was identified as having focused on ten main thematic areas: ANIMAL-FEEDING, SMALL-RUMINANTS, ANIMAL-REPRODUCTION, DAIRY-PRODUCTION, MEAT-QUALITY, SWINE-PRODUCTION, GENETICS-AND-ANIMAL-BREEDING, POULTRY, ANIMAL-WELFARE and GROWTH-FACTORS-AND-FATTY-ACIDS. The results show how genomic studies gain in weight and integrate with other thematic areas. The whole of AS research has become oriented towards an overall framework in which animal welfare, sustainable management and human health play a major role. All this would affect the future structure and management of livestock farming.
+Title: An overview of animal science research 1945-2011 through science mapping analysis.
+Similarity Score: 0.4547
+Detailed Metrics:
+  Abstract Cosine: 0.7498
+  Reference Cosine: 0.7220
+  Citation Cosine: 0.5099
+  Shared Authors: 0
+  Shared Citations: 0
+  Shared References: 0
+--------------------------------------------------------------------------------
+
+Rank 2:
+Abstract: In marine ecosystems, rising atmospheric CO2 and climate change are associated with concurrent shifts in temperature, circulation, stratification, nutrient input, oxygen content, and ocean acidification, with potentially wide-ranging biological effects. Population-level shifts are occurring because of physiological intolerance to new environments, altered dispersal patterns, and changes in species interactions. Together with local climate-driven invasion and extinction, these processes result in altered community structure and diversity, including possible emergence of novel ecosystems. Impacts are particularly striking for the poles and the tropics, because of the sensitivity of polar ecosystems to sea-ice retreat and poleward species migrations as well as the sensitivity of coral-algal symbiosis to minor increases in temperature. Midlatitude upwelling systems, like the California Current, exhibit strong linkages between climate and species distributions, phenology, and demography. Aggregated effects may modify energy and material flows as well as biogeochemical cycles, eventually impacting the overall ecosystem functioning and services upon which people and societies depend.
+Title: Climate change impacts on marine ecosystems.
+Similarity Score: 0.4480
+Detailed Metrics:
+  Abstract Cosine: 0.6910
+  Reference Cosine: 0.7173
+  Citation Cosine: 0.7843
+  Shared Authors: 0
+  Shared Citations: 0
+  Shared References: 1
+--------------------------------------------------------------------------------
+
+Rank 3:
+Abstract: Human management of ecological systems, including issues like fisheries, invasive species, and restoration, as well as others, often must be undertaken with limited information. This means that developing general principles and heuristic approaches is important. Here, I focus on one aspect, the importance of an explicit consideration of time, which arises because of the inherent limitations in the response of ecological systems. I focus mainly on simple systems and models, beginning with systems without density dependence, which are therefore linear. Even for these systems, it is important to recognize the necessary delays in the response of the ecological system to management. Here, I also provide details for optimization that show how general results emerge and emphasize how delays due to demography and life histories can change the optimal management approach. A brief discussion of systems with density dependence and tipping points shows that the same themes emerge, namely, that when considering issues of restoration or management to change the state of an ecological system, that timescales need explicit consideration and may change the optimal approach in important ways.
+Title: Timescales and the management of ecological systems
+Similarity Score: 0.4479
+Detailed Metrics:
+  Abstract Cosine: 0.7957
+  Reference Cosine: 0.6767
+  Citation Cosine: 0.6528
+  Shared Authors: 0
+  Shared Citations: 0
+  Shared References: 0
+--------------------------------------------------------------------------------
+
+Rank 4:
+Abstract: Label-free biosensors for studying cell biology have finally come of age. Recent developments have advanced the biosensors from low throughput and high maintenance research tools to high throughput and low maintenance screening platforms. In parallel, the biosensors have evolved from an analytical tool solely for molecular interaction analysis to powerful platforms for studying cell biology at the whole cell level. This paper presents historical development, detection principles, and applications in cell biology of label-free biosensors. Future perspectives are also discussed.
+Title: Label-Free Biosensors for Cell Biology
+Similarity Score: 0.4351
+Detailed Metrics:
+  Abstract Cosine: 0.7223
+  Reference Cosine: 0.5228
+  Citation Cosine: 0.4664
+  Shared Authors: 0
+  Shared Citations: 0
+  Shared References: 0
+--------------------------------------------------------------------------------
+
+Rank 5:
+Abstract: This work introduces the PYXAID program, developed for non-adiabatic molecular dynamics simulations in condensed matter systems. By applying the classical path approximation to the fewest switches surface hopping approach, we have developed an efficient computational tool that can be applied to study photoinduced dynamics at the ab initio level in systems composed of hundreds of atoms and involving thousands of electronic states. The technique is used to study in detail the ultrafast relaxation of hot electrons in crystalline pentacene. The simulated relaxation occurs on a 500 fs time scale, in excellent agreement with experiment, and is driven by molecular lattice vibrations in the 200-250 cm(-1) frequency range. The PYXAID program is organized as a Python extension module and can be easily combined with other Python-driven modules, enhancing user-friendliness and flexibility of the software. The source code and additional information are available on the Web at the address http://gdriv.es/pyxaid . The program is released under the GNU General Public License.
+Title: The PYXAID Program for Non-Adiabatic Molecular Dynamics in Condensed Matter Systems.
+Similarity Score: 0.4316
+Detailed Metrics:
+  Abstract Cosine: 0.6277
+  Reference Cosine: 0.5292
+  Citation Cosine: 0.4433
+  Shared Authors: 0
+  Shared Citations: 0
+  Shared References: 0
+--------------------------------------------------------------------------------
+
+Rank 6:
+Abstract: It is of societal importance to advance the understanding of emerging patterns of biodiversity from biological and ecological systems. The neutral theory offers a statistical-mechanical framework that relates key biological properties at the individual scale with macroecological properties at the community scale. This article surveys the quantitative aspects of neutral theory and its extensions for physicists who are interested in what important problems remain unresolved for studying ecological systems.
+Title: Statistical mechanics of ecological systems: Neutral theory and beyond
+Similarity Score: 0.4175
+Detailed Metrics:
+  Abstract Cosine: 0.7597
+  Reference Cosine: 0.7410
+  Citation Cosine: 0.6849
+  Shared Authors: 0
+  Shared Citations: 0
+  Shared References: 0
+--------------------------------------------------------------------------------
+
+Rank 7:
+Abstract: The environmental and socioeconomic interactions between distant regions of the world (telecoupling) are dramatically increasing. Telecoupling brings about new challenges and opportunities to biodiversity conservation that are of a larger magnitude and of a faster pace than ever observed before. Our understanding of the dynamics and leverage points of this telecoupled world is however limited. It is thus important to take stock of what we know and what we still need to know to formulate effective biodiversity conservation policies with telecoupling increasing. We identify the challenges and opportunities for biodiversity conservation brought about by the worlds telecoupling in international trade and information by new technologies. Challenges are presented by the high demands for agricultural and wildlife products by high-income and emerging economies, putting pressure on land protection, management and incentive-based conservation interventions. Opportunities are brought about by the strength of telecoupled information flows that can generate strong pressure on multinationals and governments to adopt sustainable practices. Examples of these opportunities are zero-deforestation pledges and the increase in the number of certification schemes in key agricultural commodities. Conservation practitioners need to adopt a global perspective on telecoupling and focus on the new conservation opportunities represented by shaping the social norms of affluent consumers in emerging and high-income economies.
+Title: Biodiversity conservation in a telecoupled world
+Similarity Score: 0.4131
+Detailed Metrics:
+  Abstract Cosine: 0.7744
+  Reference Cosine: 0.6525
+  Citation Cosine: 0.6390
+  Shared Authors: 0
+  Shared Citations: 0
+  Shared References: 0
+--------------------------------------------------------------------------------
+
+Rank 8:
+Abstract: Ostroms framework to analyse the sustainability of social-ecological systems has attracted great interest in the last years. It was not conceived to characterise systems, but its nature and structure make it very appealing to be used with this objective. However, its use to characterise three social-ecological systems where common-pool resource management is central created some methodological struggles and difficulties for comparing outcomes. This paper aims to present some adaptations developed for improving the frameworks comprehensiveness and practical applicability at local level, such as a transdisciplinary description of the second-level variables, the definition of a set of third-level variables to facilitate and enrich the descriptions and additional guidelines for gathering the information and planning data searching processes at local level. The whole process of adapting and applying the framework was the result of collaboration among scientists, and local researchers and stakeholders. The adapted framework permitted a comprehensive and comparable characterisation of the social-ecological systems analysed and facilitated its use by the local communities.
+Title: Making Ostroms framework applicable to characterise social ecological systems at the local level
+Similarity Score: 0.4111
+Detailed Metrics:
+  Abstract Cosine: 0.6905
+  Reference Cosine: 0.4738
+  Citation Cosine: 0.6043
+  Shared Authors: 0
+  Shared Citations: 0
+  Shared References: 0
+--------------------------------------------------------------------------------
+
+Rank 9:
+Abstract: High among the challenges facing mankind as the world population rapidly expands toward 9 billion people by 2050 is the technological development and implementation of sustainable agriculture and food systems to supply abundant and wholesome nutrition. In many low-income societies, women and children are the most vulnerable to food insecurity, and it is unequivocal that quality nutrition during the first 1000 d of life postconception can be transformative in establishing a robust, lifelong developmental trajectory. With the desire to catalyze disruptive advancements in global maternal and child health, this landscape review was commissioned by the Bill & Melinda Gates Foundation to examine the nutritional and managerial practices used within the food-animal agricultural system that may have relevance to the challenges faced by global human health. The landscape was categorized into a framework spanning 1) preconception, 2) gestation and pregnancy, 3) lactation and suckling, and 4) postweaning and toddler phases. Twelve key findings are outlined, wherein research within the discipline of animal sciences stands to inform the global health community and in some cases identifies gaps in knowledge in which further research is merited. Notable among the findings were 1) the quantitative importance of essential fatty acid and amino acid nutrition in reproductive health, 2) the suggested application of the ideal protein concept for improving the amino acid nutrition of mothers and children, 3) the prospect of using dietary phytase to improve the bioavailability of trace minerals in plant and vegetable-based diets, and 4) nutritional interventions to mitigate environmental enteropathy. The desired outcome of this review was to identify potential interventions that may be worthy of consideration. Better appreciation of the close linkage between human health, medicine, and agriculture will identify opportunities that will enable faster and more efficient innovations in global maternal and child health.
+Title: The Potential Impact of Animal Science Research on Global Maternal and Child Nutrition and Health: A Landscape Review12
+Similarity Score: 0.4079
+Detailed Metrics:
+  Abstract Cosine: 0.8527
+  Reference Cosine: 0.6957
+  Citation Cosine: 0.5551
+  Shared Authors: 0
+  Shared Citations: 0
+  Shared References: 0
+--------------------------------------------------------------------------------
+
+Rank 10:
+Abstract: Worldwide, our collective research and policy institutions, including the American Society of Animal Science (ASAS), are calling for more systems-based research and analysis of society's most pressing and complex problems. However, the use of systems analysis within animal science remains limited and researchers may not have the tools to answer this call. This review thus introduces important concepts in systems thinking methodology, such as policy resistance, feedback processes, and dynamic complexity. An overall rationale for systems thinking and analysis is presented, along with examples of the application of these concepts in current animal science research. In order to contrast systems approaches to more frequently employed event-oriented research frameworks, both frameworks are then applied to the ASAS' identified "Grand Challenge" problem of antimicrobial resistance (AMR) in order to compare these two kinds of analyses. Systems thinking stresses the importance of underlying system structures that lead to persistent problem behaviors vs a focus on unidirectional cause-and-effect relationships. A potential systems framework for animal production decisions to use antimicrobials is shown that more explicitly accounts for AMR in a way that can lead to different animal production decisions than the event-oriented framework. Acknowledging and accounting for fundamental system structures that can explain persistent AMR will lead to different potential solutions to this problem than would be suggested from more linear approaches. The challenges and benefits of incorporating systems methods into animal science research are then discussed.
+Title: ASAS-NANP SYMPOSIUM: Review of systems thinking concepts and their potential value in animal science research.
+Similarity Score: 0.4072
+Detailed Metrics:
+  Abstract Cosine: 0.8682
+  Reference Cosine: 0.6271
+  Citation Cosine: 0.3938
+  Shared Authors: 0
+  Shared Citations: 0
+  Shared References: 0
+--------------------------------------------------------------------------------
+
+Rank 11:
+Abstract: The default mineral nutrient acquisition strategy of land plants is the symbiosis with arbuscular mycorrhiza (AM) fungi. Research into the cell and developmental biology of AM revealed fascinating insights into the plasticity of plant cell development and of interorganismic communication. It is driven by the prospect of increased exploitation of AM benefits for sustainable agriculture. The plant cell developmental program for intracellular accommodation of AM fungi is activated by a genetically defined signaling pathway involving calcium spiking in the nucleus as second messenger. Calcium spiking is triggered by chitooligosaccharides released by AM fungi that are probably perceived via LysM domain receptor kinases. Fungal infection and calcium spiking are spatiotemporally coordinated, and only cells committed to accommodating the fungus undergo high-frequency spiking. Delivery of mineral nutrients by AM fungi occurs at tree-shaped hyphal structures, the arbuscules, in plant cortical cells. Nutrients are taken up at a plant-derived periarbuscular membrane, which surrounds fungal hyphae and carries a specific transporter composition that is of direct importance for symbiotic efficiency. An elegant study has unveiled a new and unexpected mechanism for specific protein localization to the periarbuscular membrane, which relies on the timing of gene expression to synchronize protein biosynthesis with a redirection of secretion. The control of AM development by phytohormones is currently subject to active investigation and has led to the rediscovery of strigolactones. Nearly all tested phytohormones regulate AM development, and major insights into the mechanisms of this regulation are expected in the near future.
+Title: Cell and developmental biology of arbuscular mycorrhiza symbiosis.
+Similarity Score: 0.3989
+Detailed Metrics:
+  Abstract Cosine: 0.7429
+  Reference Cosine: 0.5938
+  Citation Cosine: 0.5650
+  Shared Authors: 0
+  Shared Citations: 0
+  Shared References: 0
+--------------------------------------------------------------------------------
+
+Rank 12:
+Abstract: The heart exhibits remarkable adaptive responses to a wide array of genetic and extrinsic factors to maintain contractile function. When compensatory responses are not sustainable, cardiac dysfunction occurs, leading to cardiomyopathy. The many forms of cardiomyopathy exhibit a set of overlapping phenotypes reflecting the limited range of compensatory responses that the heart can use. These include cardiac hypertrophy, induction of genes normally expressed during development, fibrotic deposits that replace necrotic and apoptotic cardiomyocytes, and metabolic disturbances. The compensatory responses are mediated by signaling pathways that initially serve to maintain normal contractility; however, persistent activation of these pathways leads to cardiac dysfunction. Current research focuses on ways to target these specific pathways therapeutically.
+Title: The cell biology of disease: cellular mechanisms of cardiomyopathy.
+Similarity Score: 0.3984
+Detailed Metrics:
+  Abstract Cosine: 0.6877
+  Reference Cosine: 0.5702
+  Citation Cosine: 0.5928
+  Shared Authors: 0
+  Shared Citations: 0
+  Shared References: 0
+--------------------------------------------------------------------------------
+
+Rank 13:
+Abstract: We review recent developments in the physics of ultracold atomic and molecular gases in optical lattices. Such systems are nearly perfect realisations of various kinds of Hubbard models, and as such may very well serve to mimic condensed matter phenomena. We show how these systems may be employed as quantum simulators to answer some challenging open questions of condensed matter, and even high energy physics. After a short presentation of the models and the methods of treatment of such systems, we discuss in detail, which challenges of condensed matter physics can be addressed with (i) disordered ultracold lattice gases, (ii) frustrated ultracold gases, (iii) spinor lattice gases, (iv) lattice gases in artificial magnetic fields, and, last but not least, (v) quantum information processing in lattice gases. For completeness, also some recent progress related to the above topics with trapped cold gases will be discussed. Motto: There are more things in heaven and earth, Horatio, Than are dreamt of in your philosophy 1
+Title: Ultracold atomic gases in optical lattices: mimicking condensed matter physics and beyond
+Similarity Score: 0.3659
+Detailed Metrics:
+  Abstract Cosine: 0.5769
+  Reference Cosine: 0.4955
+  Citation Cosine: 0.4762
+  Shared Authors: 0
+  Shared Citations: 0
+  Shared References: 0
+--------------------------------------------------------------------------------
+
+Rank 14:
+Abstract: This paper presents the Regime Shifts Database (RSDB), a new online, open-access database that uses a novel consistent framework to systematically analyze regime shifts based on their impacts, key drivers, underlying feedbacks, and management options. The database currently contains 27 generic types of regime shifts, and over 300 specific case studies of a variety of regime shifts. These regime shifts occur across diverse types of systems and are driven by many different types of processes. Besides impacting provisioning and regulating services, our work shows that regime shifts substantially impact cultural and aesthetic ecosystem services. We found that social-ecological feedbacks are difficult to characterize and more work is needed to develop new tools and approaches to better understand social-ecological regime shifts. We hope that the database will stimulate further research on regime shifts and make available information that can be used in management, planning and assessment.
+Title: The Regime Shifts Database: A Framework for Analyzing Regime Shifts in Social-Ecological Systems
+Similarity Score: 0.3519
+Detailed Metrics:
+  Abstract Cosine: 0.7412
+  Reference Cosine: 0.6039
+  Citation Cosine: 0.6949
+  Shared Authors: 0
+  Shared Citations: 0
+  Shared References: 0
+--------------------------------------------------------------------------------
+
+Rank 15:
+Abstract: Changes in climate patterns are dramatically influencing some agricultural areas. Arid, semiarid and coastal agricultural areas are especially vulnerable to climate change impacts on soil salinity. Inventorying and monitoring climate change impacts on salinity are crucial to evaluate the extent of the problem, to recognize trends and to formulate irrigation and crop management strategies that will maintain the agricultural productivity of these areas. Over the past three decades, Corwin and colleagues at the U.S. Salinity Laboratory (USSL) have developed proximal sensor and remote imagery methodologies for assessing soil salinity at multiple scales. The objective of this paper is to evaluate the impact climate change has had on selected agricultural areas experiencing weather pattern changes, with a focus on the use of proximal and satellite sensors to assess salinity development. Evidence presented in case studies for Californias San Joaquin Valley (SJV) and Minnesotas Red River Valley (RRV) demonstrates the utility of these sensor approaches in assessing soil salinity changes due to changes in weather patterns. Agricultural areas are discussed where changes in weather patterns have increased rootzone soil salinity, particularly in areas with shallow water tables (SJV and RRV), coastal areas with seawater intrusion (e.g., Bangladesh and the Gaza Strip) and waterscarce areas potentially relying on degraded groundwater as an irrigation source (SJV and MurrayDarling River Basin). Trends in salinization due to climate change indicate that the infrastructure and protocols to monitor soil salinity from field to regional to national to global scales are needed.
+Title: Climate change impacts on soil salinity in agricultural areas
+Similarity Score: 0.3471
+Detailed Metrics:
+  Abstract Cosine: 0.8068
+  Reference Cosine: 0.6897
+  Citation Cosine: 0.6902
+  Shared Authors: 0
+  Shared Citations: 0
+  Shared References: 0
+--------------------------------------------------------------------------------
+
+Rank 16:
+Abstract: Climate change could potentially interrupt progress toward a world without hunger. A robust and coherent global pattern is discernible of the impacts of climate change on crop productivity that could have consequences for food availability. The stability of whole food systems may be at risk under climate change because of short-term variability in supply. However, the potential impact is less clear at regional scales, but it is likely that climate variability and change will exacerbate food insecurity in areas currently vulnerable to hunger and undernutrition. Likewise, it can be anticipated that food access and utilization will be affected indirectly via collateral effects on household and individual incomes, and food utilization could be impaired by loss of access to drinking water and damage to health. The evidence supports the need for considerable investment in adaptation and mitigation actions toward a climate-smart food system that is more resilient to climate change influences on food security.
+Title: Climate Change Impacts on Global Food Security
+Similarity Score: 0.3160
+Detailed Metrics:
+  Abstract Cosine: 0.6845
+  Reference Cosine: 0.6864
+  Citation Cosine: 0.7494
+  Shared Authors: 0
+  Shared Citations: 0
+  Shared References: 0
+--------------------------------------------------------------------------------
+
+Rank 17:
+Abstract: Charismatic species are the main attractor of ecotourists to protected areas, but this narrow interest leads to underappreciation of other biodiversity as well as cultural values of protected areas. Many protected areas with high conservation value, but little funding, lack charismatic species. Exploring tourists' preferences alternative to charismatic species may help identify ecotourism markets that are more likely to support such areas. We used a choice experiment and latent class model to explore tourists' heterogeneous preference for biodiversity and biodiversityrelated activities in South African national parks. We found that tourists' preferences were not restricted to charismatic species, but extended to less charismatic biodiversity, as well as to landscapes. In addition, biodiversityrelated activities, such as camping and game drives, the sense of wilderness attached to the place tourists were visiting and accessibility of protected areas, also affected tourists' preferences. Particularly, domestic tourists, as well as more experienced international tourists, were more likely to support initiatives that promote a broader biodiversity experience than charismatic species alone, and were prepared to travel longer distances to do so. Our results reveal new opportunities to promote and support biodiversity conservation at sites where only less charismatic biodiversity is present. In addition, our results may help inform landuse planning based on public preferences for biodiversity conservation, incorporating sense of place.
+Title: Ecotourism marketing alternative to charismatic megafauna can also support biodiversity conservation
+Similarity Score: 0.3160
+Detailed Metrics:
+  Abstract Cosine: 0.7317
+  Reference Cosine: 0.6596
+  Citation Cosine: 0.6244
+  Shared Authors: 0
+  Shared Citations: 0
+  Shared References: 0
+--------------------------------------------------------------------------------
+
+Rank 18:
+Abstract: A the many human activities that cause habitat loss (Czech et al. 2000), urban development produces some of the greatest local extinction rates and frequently eliminates the large majority of native species (Vale and Vale 1976, Luniak 1994, Kowarik 1995, Marzluff 2001). Also, urbanization is often more lasting than other types of habitat loss. Throughout much of New England, for example, ecological succession is restoring forest habitat lost from farming and logging, whereas most urbanized areas in that region not only persist but continue to expand and threaten other local ecosystems (Stein et al. 2000). Another great conservation challenge of urban growth is that it replaces the native species that are lost with widespread weedy nonnative species. This replacement constitutes the process of biotic homogenization that threatens to reduce the biological uniqueness of local ecosystems (Blair 2001). Urban-gradient studies show that, for many taxa, for example, plants (Kowarik 1995) and birds and butterflies (Blair and Launer 1997), the number of nonnative species increases toward centers of urbanization, while the number of native species decreases. The final conservation challenge of sprawl is its current and growing geographical extent (Benfield et al. 1999). A review by Czech and colleagues (2000) finds that urbanization endangers more species and is more geographically ubiquitous in the mainland United States than any other human activity. Species threatened by urbanization also tend to be threatened by agriculture, recreation, roads, and many other human impacts, emphasizing the uniquely far-reaching transformations that accompany urban sprawl. About 50% of the US population lives in the suburbs, with another 30% living in cities (USCB 2001). Over 5% of the total surface area of the United States is covered by urban and other built-up areas (USCB 2001). This is more land than is covered by the combined total of national and state parks and areas preserved by the Nature Conservancy. More ominously, the growth rate of urban land use is accelerating faster than land preserved as parks or conservation areas by the Conservancy (figure 1). Much of this growth is from the spread of suburban housing. It is estimated, for example, that residential yards occupy 135,000 acres in the state of Missouri (MDC 2002). This residential landscape represents nearly 1% of the total area of Missouri and is nearly three times the area occupied by Missouri state parks. Here I review the growing literature that documents how urban (and suburban) expansion harms native ecosystems. This knowledge can aid conservation efforts in two major ways. One is through the use of ecological principlessuch as preserving remnant natural habitat and restoring modified habitats to promote native species conservationto reduce the impacts of urbanization on native ecosystems. Rare and endangered species sometimes occur in urbanized habitats (Kendle and Forbes 1997, Godefroid 2001) and thus could be conserved there. Managing the large amount of residential vegetation (1% of the state area, as noted above) in ways that promote native plants and animals could also make a significant contribution to conservation.
+Title: Urbanization, Biodiversity, and Conservation
+Similarity Score: 0.3036
+Detailed Metrics:
+  Abstract Cosine: 0.6125
+  Reference Cosine: 0.6096
+  Citation Cosine: 0.7305
+  Shared Authors: 0
+  Shared Citations: 0
+  Shared References: 0
+--------------------------------------------------------------------------------
+

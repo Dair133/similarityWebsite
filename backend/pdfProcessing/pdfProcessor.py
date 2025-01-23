@@ -193,58 +193,52 @@ class PDFProcessor:
             self.logger.error(f"Error extracting text from PDF: {str(e)}")
             raise
         
-
+ 
     def parse_paper_info(self, info_string: str) -> Dict[str, Any]:
      try:
-        # Initialize expanded result structure
         result = {
             'title': '',
-            'core_concepts': [],
-            'core_methodologies': [],
-            'related_methodologies': [],
-            'abstract_concepts': [],     # Higher-level conceptual connections
-            'cross_domain_applications': [], # Applications in other fields
-            'theoretical_foundations': [], # Underlying principles
-            'analogous_problems': []    # Similar problems in different contexts
+            'domain': '',
+            'method_type': '',
+            'core_methodology': [],
+            'key_findings': [],
+            'subject_tags': []
         }
 
-        # Split main sections by semicolon
-        sections = info_string.split(';')
+        lines = info_string.split('\n')  # Split by newlines first
+        current_section = None
+        
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+                
+            # Handle title specially
+            if line.startswith('TITLE:'):
+                # Remove brackets and extra whitespace
+                title = line[6:].strip('[]').strip()
+                result['title'] = title
+            elif line.startswith('DOMAIN:'):
+                result['domain'] = line[7:].strip()
+            elif line.startswith('METHOD_TYPE:'):
+                result['method_type'] = line[12:].strip()
+            elif line.startswith('CORE_METHODOLOGY:'):
+                if ':' in line:
+                    methods = line[17:].strip()
+                    methods = [m.strip('[]').strip() for m in methods.split(',')]
+                    result['core_methodology'] = [m for m in methods if m]
+            elif line.startswith('KEY_FINDINGS:'):
+                if ':' in line:
+                    findings = line[13:].strip()
+                    findings = [f.strip('[]').strip() for f in findings.split(',')]
+                    result['key_findings'] = [f for f in findings if f]
+            elif line.startswith('SUBJECT_TAGS:'):
+                if ':' in line:
+                    tags = line[13:].strip()
+                    tags = [t.strip('[]').strip() for t in tags.split(',')]
+                    result['subject_tags'] = [t for t in tags if t]
 
-        for section in sections:
-            section = section.strip()
-            
-            if section.startswith('TITLE:'):
-                result['title'] = section[6:].strip("'")
-            elif section.startswith('CORE_CONCEPTS:'):
-                concepts = section[13:].strip()
-                concepts = [c.strip('[]') for c in concepts.split(',')]
-                result['core_concepts'] = [c for c in concepts if c]
-            elif section.startswith('CORE_METHODOLOGIES:'):
-                methods = section[19:].strip()
-                methods = [m.strip('[]') for m in methods.split(',')]
-                result['core_methodologies'] = [m for m in methods if m]
-            elif section.startswith('RELATED_METHODOLOGIES:'):
-                rel_methods = section[22:].strip()
-                rel_methods = [rm.strip('[]') for rm in rel_methods.split(',')]
-                result['related_methodologies'] = [rm for rm in rel_methods if rm]
-            elif section.startswith('ABSTRACT_CONCEPTS:'):
-                abs_concepts = section[17:].strip()
-                abs_concepts = [ac.strip('[]') for ac in abs_concepts.split(',')]
-                result['abstract_concepts'] = [ac for ac in abs_concepts if ac]
-            elif section.startswith('CROSS_DOMAIN:'):
-                cross_domain = section[13:].strip()
-                cross_domain = [cd.strip('[]') for cd in cross_domain.split(',')]
-                result['cross_domain_applications'] = [cd for cd in cross_domain if cd]
-            elif section.startswith('THEORETICAL_FOUNDATIONS:'):
-                foundations = section[23:].strip()
-                foundations = [f.strip('[]') for f in foundations.split(',')]
-                result['theoretical_foundations'] = [f for f in foundations if f]
-            elif section.startswith('ANALOGOUS_PROBLEMS:'):
-                analogies = section[18:].strip()
-                analogies = [a.strip('[]') for a in analogies.split(',')]
-                result['analogous_problems'] = [a for a in analogies if a]
-
+        print(f"Parsed title: '{result['title']}'")  # Debug print
         return result
             
      except Exception as e:

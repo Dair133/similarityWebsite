@@ -33,51 +33,39 @@ from torch.nn.functional import cosine_similarity
 from transformers import AutoTokenizer, AutoModel
 from concurrent.futures import ThreadPoolExecutor
 
-claudeInstruction_extractTitleMethodInfo = """Given a scientific paper, you must perform a DETERMINISTIC analysis by following these strict steps in order. Your output must be EXACTLY consistent across multiple runs.
+claudeInstruction_extractTitleMethodInfo = """
+Given a scientific paper, perform a DETERMINISTIC analysis by following these steps to extract key features for semantic search:
 
-1. First, identify ONLY the main topic and core findings from the abstract.
+1. First identify:
+TITLE: Exact paper title
+DOMAIN: Primary research domain (e.g. epidemiology, machine learning, etc.)
+METHOD_TYPE: Core methodology type (experimental, observational, computational, theoretical)
 
-2. Then, systematically extract concepts following these exact definitions:
-CORE_CONCEPTS: Only concepts explicitly mentioned in the abstract/title, THESE SHOULD SPECIFIC TO THE TOPIC OF THE PAPER AND SHOULD NOT BE GENERAL CONCEPTS which could be applied to multitple subjects
-CORE_METHODOLOGIES: Only methods directly described as being used
-RELATED_METHODOLOGIES: Standard methods in the field that logically connect
-ABSTRACT_CONCEPTS: Fundamental principles (max 3) that underlie the work
-CROSS_DOMAIN: Major fields (max 3) where similar principles apply
-THEORETICAL_FOUNDATIONS: Base theories (max 3) that the work builds on
-ANALOGOUS_PROBLEMS: Specific problems (max 3) with similar structure
+2. Then extract ONLY:
 
-3. You MUST output in this exact format with NO variations:
-TITLE: [paper title];
-CORE_CONCEPTS: [only concepts from abstract, comma-separated];
-CORE_METHODOLOGIES: [only described methods, comma-separated];
-RELATED_METHODOLOGIES: [standard field methods, comma-separated];
-ABSTRACT_CONCEPTS: [max 3 principles, comma-separated];
-CROSS_DOMAIN: [max 3 fields, comma-separated];
-THEORETICAL_FOUNDATIONS: [max 3 theories, comma-separated];
-ANALOGOUS_PROBLEMS: [max 3 problems, comma-separated];
+CORE_METHODOLOGY: 
+- Specific techniques/methods used (max 3, comma-separated)
+- Must be concrete methods, not general approaches
+- Example: "logistic regression, survival analysis" NOT "statistical analysis"
 
-Rules for deterministic output:
-- Use ONLY information explicitly stated in the paper
-- Limit each section to 3 items maximum
-- Always order items alphabetically within each section
-- Use consistent, standardized terminology
-- No explanatory text or variations
-- No optional or variable content
-- Strict semicolon and comma usage
+KEY_FINDINGS:
+- Main numerical/empirical results (max 2)
+- Must be specific to this paper
+- Example: "90% classification accuracy" NOT "improved performance"
 
-Example for consistency (examining a quantum mechanics paper):
-TITLE: Quantum State Measurement;
-CORE_CONCEPTS: measurement uncertainty, quantum states, wave function collapse;
-CORE_METHODOLOGIES: interferometry, state preparation, wave function analysis;
-RELATED_METHODOLOGIES: density matrix estimation, quantum tomography, state reconstruction;
-ABSTRACT_CONCEPTS: measurement theory, quantum mechanics, wave-particle duality;
-CROSS_DOMAIN: communication systems, optical computing, signal processing;
-THEORETICAL_FOUNDATIONS: linear algebra, quantum theory, statistical mechanics;
-ANALOGOUS_PROBLEMS: classical wave interference, noise filtering, signal detection;
+SUBJECT_TAGS:
+- Specific subject matter tags (max 3)
+- Must be from standardized vocabulary list
+- Example: "coronary artery disease" NOT "heart problems"
 
-Any deviation from this format or inconsistency across runs is an error. ANY DEVIATION AT ALL IN THE DETERMINISTIC ANSWERS IS AN ERROR AND WILL RESULT IN A NON FUNCITONAL SYSTEM.
+3. Output format must be exactly:
+TITLE: [exact paper title];
+DOMAIN: [single domain];
+METHOD_TYPE: [single type];
+CORE_METHODOLOGY: [up to 3 methods];
+KEY_FINDINGS: [up to 2 results];
+SUBJECT_TAGS: [up to 3 tags];
 """
-
 
 claudeInstruction_extractAllInfo = '''Given a scientific paper, perform a DETERMINISTIC analysis by following these strict steps in order. Your output must be EXACTLY consistent across multiple runs.
 
@@ -112,16 +100,12 @@ Rules for deterministic output:
 Any deviation from this format or inconsistency across runs is an error. ANY DEVIATION AT ALL IN THE DETERMINISTIC ANSWERS IS AN ERROR AND WILL RESULT IN A NON FUNCITONAL SYSTEM.
 '''
 
-
-
 current_dir = Path(__file__).parent
 similarity_root = current_dir.parent
 env_path = similarity_root / '.env.txt'
 
-
 upload_bp = Blueprint('upload', __name__)
 load_dotenv(env_path)  # Load environment variables from .en
-
 
 api_key_semantic = os.getenv('SEMANTIC_API_KEY')
 api_key_claude = os.getenv('HAIKU_API_KEY')
@@ -172,16 +156,18 @@ def process_pdf_route():
                                                      instruction=claudeInstruction_extractTitleMethodInfo,
                                                      api_key=api_key_claude)
                 pdfInfo = pdfTitle_claude.content[0].text
+                print(f"Extracted info: {pdfInfo}")
                 pdfInfoStruct = processor.parse_paper_info(pdfInfo)
                 
                 # Try Semantic Scholar first
                 startTime = time.time()
+                print('The title is',pdfInfoStruct['title'])
                 semanticScholarPaperInfo = semanticScholar.return_info_by_title(pdfInfoStruct['title'], 
                                                                               api_key_semantic)
                 endTime = time.time()
                 print(f"Time taken for semantic scholar search: {endTime - startTime} seconds")
-                
                 if semanticScholarPaperInfo:
+                    print("Using Semantic Scholar data")
                     # Use Semantic Scholar data if available
                     result = {
                         'title': pdfInfoStruct['title'],
@@ -195,12 +181,13 @@ def process_pdf_route():
                             'references': semanticScholarPaperInfo['references']
                         },
                         'abstract_info': {
-                            'core_concepts': pdfInfoStruct['core_concepts'],
-                            'core_methodologies': pdfInfoStruct['core_methodologies'],
-                            'related_methodologies': pdfInfoStruct['related_methodologies']
+                            'core_concepts': pdfInfoStruct['key_findings'],
+                            'core_methodologies': pdfInfoStruct['core_methodology'],
+                            'related_methodologies': pdfInfoStruct['subject_tags']
                         }
                     }
                 else:
+                    print("No semantic scholar data")
                     # If no Semantic Scholar data, use Haiku analysis
                     entirePDFText = processor._extract_text(filepath)  # Get full text again if needed
                     seedPaperInfo = processor.ask_claude(text=entirePDFText, 
@@ -222,7 +209,9 @@ def process_pdf_route():
                         'abstract_info': {
                             'core_concepts': pdfInfoStruct['core_concepts'],
                             'core_methodologies': pdfInfoStruct['core_methodologies'],
-                            'related_methodologies': pdfInfoStruct['related_methodologies']
+                            'related_methodologies': pdfInfoStruct['related_methodologies'],
+                            'key_findings': pdfInfoStruct['key_findings'],
+                            'subject_tags': pdfInfoStruct['subject_tags'],
                         }
                     }
                 
@@ -238,54 +227,56 @@ def process_pdf_route():
 
                 # Prepare all search terms
                 search_terms = []
-                for concept in pdfInfoStruct['core_concepts']:
+                if pdfInfoStruct['domain']:
                     search_terms.append({
-                        'term': concept,
-                    })
-                for methodology in pdfInfoStruct['core_methodologies']:
-                    search_terms.append({
-                        'term': methodology,
-                        'type': 'core_methodology'
+                        'term': pdfInfoStruct['domain'],
+                        'type': 'domain',
+                        'weight': 1.0
                     })
 
-                for methodology in pdfInfoStruct['related_methodologies']:
+                # Add method type as search context
+                if pdfInfoStruct['method_type']:
                     search_terms.append({
-                        'term': methodology,
-                        'type': 'related_methodology'
-                    })
-                for abstractConcept in pdfInfoStruct['abstract_concepts']:
-                    search_terms.append({
-                        'term': abstractConcept,
-                        'type': 'abstract_concept'
-                    })
-                for crossDomain in pdfInfoStruct['cross_domain_applications']:
-                    search_terms.append({
-                        'term': crossDomain,
-                        'type': 'cross_domain_applications'
-                    })
-                for theoreticalFoundation in pdfInfoStruct['theoretical_foundations']:
-                    search_terms.append({
-                        'term': theoreticalFoundation,
-                        'type': 'theoretical_foundation'
-                    })
-                for analogousProblems in pdfInfoStruct['analogous_problems']:
-                    search_terms.append({
-                        'term': analogousProblems,
-                        'type': 'analogous_problems'
+                        'term': pdfInfoStruct['method_type'],
+                        'type': 'method_type',
+                        'weight': 1.0
                     })
 
-                    # if not cache.is_cache_valid(pdfName):
-                    #  # Cache the results
-                    #  paper_title = pdfInfoStruct['title']
-                    # # Cache the terms
-                    #  cache.cache_search_terms(
-                    #  pdf_filename=pdfName,
-                    #  paper_title=pdfName
-                    #  search_terms=search_terms
-                    #     )
+                # Add core methodologies
+                for methodology in pdfInfoStruct['core_methodology']:
+                    search_terms.append({
+                        'term': methodology,
+                        'type': 'core_methodology', 
+                        'weight': 2.0
+                    })
+
+                # Add specific findings  
+                for finding in pdfInfoStruct['key_findings']:
+                    search_terms.append({
+                        'term': finding,
+                        'type': 'key_finding',
+                        'weight': 1.5
+                    })
+
+                # Add subject tags
+                for tag in pdfInfoStruct['subject_tags']:
+                    search_terms.append({
+                        'term': tag,
+                        'type': 'subject_tag',
+                        'weight': 1.8
+                    })
+
+                # if not cache.is_cache_valid(pdfName):
+                #  # Cache the results
+                #  paper_title = pdfInfoStruct['title']
+                # # Cache the terms
+                #  cache.cache_search_terms(
+                #  pdf_filename=pdfName,
+                #  paper_title=pdfName
+                #  search_terms=search_terms
+                #     )
                 
-         
-    # Do all searches in parallel
+                # Do all searches in parallel
                 startTime = time.time()
                 papersReturnedThroughSearch = semanticScholar.search_papers_parallel(search_terms, api_key_semantic)
                 endTime = time.time()
@@ -316,8 +307,6 @@ def process_pdf_route():
                 endTime = time.time()
                 print(f"Time taken for filtering similar papers: {endTime - startTime} seconds")
         
-                
-                
                 # Clean up and return
                 os.remove(filepath)
                 result['seed_paper'] = seedPaper
@@ -333,7 +322,6 @@ def process_pdf_route():
                         
                 return jsonify(result), 200
                    
-                    
             except Exception as e:
                 error_message = f"Error processing request: {str(e)}"
                 print(f"Detailed error: {error_message}")  # Enhanced error logging
@@ -391,11 +379,10 @@ def create_app():
     app.register_blueprint(upload_bp)
     return app
 
-
 # This function should probably be moved to another file????//
 def compare_papers(seed_paper, papers_returned_through_search):
     try:
-        inference = ModelInference("modelFolder/balanced_model.pth")
+        inference = ModelInference("modelFolder/standardModel37.pth")
         metricCalculator = MetricsCalculator()
         
         # Get all metrics in parallel
@@ -426,7 +413,7 @@ def compare_papers(seed_paper, papers_returned_through_search):
             # Print keys of paper
             # print(f"Keys of paper: {paper['paper_info'].keys()}")
             compared_paper = {
-               # 'search_type': paper['search_type'],
+                # 'search_type': paper['search_type'],
                 'source_info': paper['source_info'],
                 'paper_info': paper['paper_info'],
                 'similarity_score': float(similarity),
@@ -446,14 +433,6 @@ def compare_papers(seed_paper, papers_returned_through_search):
         print(f"Error occurred during paper comparison: {str(e)}")
         raise
 
-
-
-    
-
 if __name__ == '__main__':
     app = create_app()
-    app.run(debug=True, host='0.0.0.0', port=5000,use_reloader=True)
-
-
-
-
+    app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=True)

@@ -38,6 +38,7 @@ function App() {
       const data = await response.json();
 
       console.log(data)
+      console.log(data.paper_info.abstract)
       // setsPaper data, triggering the useState hook to update the results state variable
       setPaperData(data);
     } catch (error) {
@@ -101,6 +102,10 @@ function App() {
   };
 
   const renderSemanticScholarInfo = (info) => {
+    if (!info) return null;
+    if (typeof info === 'string') {
+      return <div>{info}</div>;
+    }
     return (
       <div>
         {Object.entries(info).map(([key, value]) => (
@@ -132,7 +137,7 @@ function App() {
           {results && (
             <div style={styles.results}>
               <h3>Semantic Scholar Info:</h3>
-              {renderSemanticScholarInfo(results.semantic_scholar_info)}
+              {renderSemanticScholarInfo(results.seed_paper.paper_info.abstract)}
               <h3>Semantic Scholar Abstract Info:</h3>
               {renderSemanticScholarInfo(results.abstract_info)}
               <h3>Similar Papers</h3>

@@ -370,8 +370,8 @@ if __name__ == "__main__":
     returned_papers_df = pd.read_excel('C:\\reactOffline\\similarity\\backend\\testing\\returnedPaper.xlsx')
     
     # Extract model name from path
-    modelName = 'best_model_fold_4.pth' # actually sued for logic, change this if want to change model
-    model_name = 'best_model_fold_4'# Used for file creation without extension
+    modelName = 'standardModel.pth' # actually sued for logic, change this if want to change model
+    model_name = 'standardModel'# Used for file creation without extension
     
     # Run comparison
     compare_papers(
