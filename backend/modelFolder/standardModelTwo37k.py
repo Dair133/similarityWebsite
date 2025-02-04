@@ -13,7 +13,7 @@ from datetime import datetime
 from torch.optim.lr_scheduler import ReduceLROnPlateau
 import time
 import math
-from backend.modelFolder.modelRunners.standardModelTwo37kCalibrator import SimilarityCalibrator
+from modelRunners.standardModelRunner37k2 import SimilarityCalibrator
 # # Set up logging
 # logging.basicConfig(
 #     level=logging.INFO,
