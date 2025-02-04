@@ -11,7 +11,7 @@ from pdfProcessing.pdfProcessor import PDFProcessor  # Note the lowercase 'p' in
 from pdfProcessing.semanticSearch import SemanticScholar
 
 # Import for model runners
-from modelFolder.modelRunners.modelRunner import ModelInference
+from modelFolder.modelRunners.standardModelRunner37k2 import ModelInference
 from modelFolder.modelRunners.lowSciBertModelRunner import LowSciBertModelInference  # Import the new model inference class
 
 from modelFolder.metricsCalculator import MetricsCalculator
@@ -382,7 +382,7 @@ def create_app():
 # This function should probably be moved to another file????//
 def compare_papers(seed_paper, papers_returned_through_search):
     try:
-        inference = ModelInference("modelFolder/standardModel37.pth")
+        inference = ModelInference("modelFolder/standardModel-2-37k.pth")
         metricCalculator = MetricsCalculator()
         
         # Get all metrics in parallel
