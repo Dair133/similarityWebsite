@@ -4,7 +4,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 import numpy as np
-from modelFolder.model import SiameseNetwork
+from modelFolder.standardModelOne37k import SiameseNetwork
 
 class ModelInference:
     def __init__(self, model_path: str):

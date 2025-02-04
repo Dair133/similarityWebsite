@@ -3,8 +3,8 @@ from torch import nn
 import torch.nn.functional as F
 import numpy as np
 from typing import Optional, Dict, Any
-from calibrator import SimilarityCalibrator
-from modelFolder.standardModelRunner37k2 import SiameseNetwork
+from standardModelTwo37kCalibrator import SimilarityCalibrator
+from modelFolder.standardModelTwo37k import SiameseNetwork
 
 class ModelInference:
     def __init__(self, model_path: str, calibrator_path: Optional[str] = None):
