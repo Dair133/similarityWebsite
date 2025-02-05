@@ -382,7 +382,9 @@ def create_app():
 # This function should probably be moved to another file????//
 def compare_papers(seed_paper, papers_returned_through_search):
     try:
-        inference = ModelInference("modelFolder/standardModel-2-37k.pth")
+        inference = ModelInference(
+            model_path="modelFolder/standardModel-2-37k.pth",
+        )
         metricCalculator = MetricsCalculator()
         
         # Get all metrics in parallel
@@ -396,34 +398,37 @@ def compare_papers(seed_paper, papers_returned_through_search):
         compared_papers = []
         # Process the results
         for paper, metrics in zip(papers_returned_through_search, metrics_list):
-            similarity = inference.predict_similarity(
-                paper1_Citation_Count=seed_paper['paper_info']['citation_count'],
-                paper1_Reference_Count=seed_paper['paper_info']['reference_count'],
-                paper1_SciBert=seed_paper['paper_info'].get('scibert', []),
-                paper2_Citation_Count=paper['paper_info']['citation_count'],
-                paper2_Reference_Count=paper['paper_info'].get('reference_count', 0),
-                paper2_SciBert=paper['paper_info'].get('scibert', []),
-                shared_author_count=metrics['shared_author_count'],
-                shared_reference_count=metrics['shared_reference_count'],
-                shared_citation_count=metrics['shared_citation_count'],
-                reference_cosine=metrics['reference_cosine'],
-                citation_cosine=metrics['citation_cosine'],
-                abstract_cosine=metrics['abstract_cosine']
-            )
-            # Print keys of paper
-            # print(f"Keys of paper: {paper['paper_info'].keys()}")
+            # Prepare shared data dictionary
+            shared_data = {
+                'reference_count': metrics['shared_reference_count'],
+                'reference_cosine': metrics['reference_cosine'],
+                'citation_count': metrics['shared_citation_count'],
+                'citation_cosine': metrics['citation_cosine'],
+                'author_count': metrics['shared_author_count'],
+                'abstract_cosine': metrics['abstract_cosine']
+            }
+            
+            try:
+                similarity = inference.predict_similarity(
+                    paper1_SciBert=seed_paper['paper_info'].get('scibert', []),
+                    paper2_SciBert=paper['paper_info'].get('scibert', []),
+                    shared_data=shared_data
+                )
+            except Exception as e:
+                print(f"Error in similarity prediction: {str(e)}")
+                similarity = 0.0
+            
+            print(similarity)
             compared_paper = {
-                # 'search_type': paper['search_type'],
-                'source_info': paper['source_info'],
-                'paper_info': paper['paper_info'],
+                'source_info': paper.get('source_info', {}),
+                'paper_info': paper.get('paper_info', {}),
                 'similarity_score': float(similarity),
                 'comparison_metrics': metrics
             }
             compared_papers.append(compared_paper)
-        
+
         return {
             'seed_paper': {
-                'search_type': 'seed_paper',
                 'paper_info': seed_paper
             },
             'compared_papers': compared_papers

@@ -3,7 +3,7 @@ from torch import nn
 import torch.nn.functional as F
 import numpy as np
 from typing import Optional, Dict, Any
-# from standardModelTwo37kCalibrator import SimilarityCalibrator
+from modelFolder.modelRunners.standardModelTwo37kCalibrator import SimilarityCalibrator
 from modelFolder.standardModelTwo37k import SiameseNetwork
 
 import torch
@@ -11,84 +11,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
-class SimilarityCalibrator:
-    def __init__(self, 
-                 initial_temperature: float = 2.0,
-                 target_mean: float = 0.5,
-                 target_std: float = 0.25):
-        self.temperature = initial_temperature
-        self.target_mean = target_mean
-        self.target_std = target_std
-        self.running_mean = None
-        self.running_std = None
-        
-    def fit(self, val_similarities: torch.Tensor) -> None:
-        """Initialize or update calibration parameters"""
-        with torch.no_grad():
-            # Always update statistics when fit is called
-            current_mean = val_similarities.mean().item()
-            current_std = val_similarities.std().item()
-            
-            if self.running_mean is None:
-                self.running_mean = current_mean
-                self.running_std = current_std
-            else:
-                # Using exponential moving average for stability
-                self.running_mean = 0.9 * self.running_mean + 0.1 * current_mean
-                self.running_std = 0.9 * self.running_std + 0.1 * current_std
-    
-    def calibrate(self, similarities: torch.Tensor) -> torch.Tensor:
-        """Enhanced calibration with guaranteed spread"""
-        with torch.no_grad():
-            # Check if we need to initialize statistics
-            if self.running_mean is None:
-                self.fit(similarities)
-            
-            # Now perform the calibration
-            centered = similarities - self.running_mean
-            
-            # Apply aggressive spread transformation
-            spread = torch.sigmoid(centered * 4) * 2 - 1
-            spread = torch.sign(spread) * torch.abs(spread).pow(0.3)
-            
-            # Normalize to target distribution
-            min_val, max_val = spread.min(), spread.max()
-            normalized = (spread - min_val) / (max_val - min_val + 1e-8)
-            
-            # Scale to target range while preserving order
-            calibrated = normalized * 0.8 + 0.1
-            
-            return calibrated
 
-def evaluate_fold(model, val_loader, calibrator=None):
-    device = next(model.parameters()).device
-    model.eval()
-    raw_similarities = []
-    calibrated_similarities = []
-    
-    with torch.no_grad():
-        for paper1, paper2, shared_features in val_loader:
-            paper1 = paper1.to(device)
-            paper2 = paper2.to(device)
-            shared_features = shared_features.to(device)
-            
-            embedding1, embedding2 = model(paper1, paper2, shared_features)
-            similarity = F.cosine_similarity(embedding1, embedding2, dim=1).cpu()
-            raw_similarities.extend(similarity.numpy())
-            
-            # Apply calibration if calibrator is provided
-            if calibrator is not None:
-                calibrated = calibrator.calibrate(similarity)
-                calibrated_similarities.extend(calibrated.numpy())
-    
-    raw_similarities = np.array(raw_similarities)
-    
-    if calibrator is not None:
-        # Fit calibrator on new validation data
-        calibrator.fit(torch.tensor(raw_similarities))
-        return raw_similarities, np.array(calibrated_similarities)
-        
-    return raw_similarities
 
 class ModelInference:
     def __init__(self, model_path: str, calibrator_path: Optional[str] = None):
@@ -105,10 +28,16 @@ class ModelInference:
         self.model = self.load_model(model_path)
         self.model.eval()
         
-        # Initialize calibrator
-        self.calibrator = None
+        # Initialize calibrator with pre-computed statistics
+        self.calibrator = SimilarityCalibrator(
+            initial_temperature=2.0,
+            target_mean=0.5,
+            target_std=0.25
+        )
+        
+        # If we have calibrator statistics, load them
         if calibrator_path:
-            self.calibrator = self.load_calibrator(calibrator_path)
+            self.load_calibrator_state(calibrator_path)
     
     def load_model(self, model_path: str) -> nn.Module:
         """Load the trained model from path"""
@@ -118,36 +47,33 @@ class ModelInference:
             model.load_state_dict(state_dict)
             model = model.to(self.device)
             return model
-            
         except Exception as e:
             raise Exception(f"Error loading model: {str(e)}")
     
-    def load_calibrator(self, calibrator_path: str) -> Optional[SimilarityCalibrator]:
-        """Load the calibrator if available"""
+    def load_calibrator_state(self, calibrator_path: str):
+        """Load pre-computed calibrator statistics"""
         try:
-            calibrator_state = torch.load(calibrator_path, map_location=self.device)
-            calibrator = SimilarityCalibrator(
-                initial_temperature=2.0,
-                target_mean=0.5,
-                target_std=0.25
-            )
-            calibrator.__dict__.update(calibrator_state)
-            return calibrator
+            saved_state = torch.load(calibrator_path, map_location='cpu')
+            if 'metrics' in saved_state:
+                # Get all raw similarities from validation
+                all_raw_similarities = np.concatenate(saved_state['metrics']['raw_similarities'])
+                # Fit calibrator on these similarities
+                self.calibrator.fit(torch.tensor(all_raw_similarities))
+            elif isinstance(saved_state, dict):
+                # Directly load calibrator state
+                self.calibrator.__dict__.update(saved_state)
         except Exception as e:
-            print(f"Warning: Could not load calibrator: {str(e)}")
-            return None
+            print(f"Warning: Could not load calibrator state: {str(e)}")
 
     def normalize_metadata(self, shared_data: Dict[str, Any]) -> torch.Tensor:
-        """
-        Normalize metadata features using the same strategy as training
-        """
+        """Normalize metadata features using the same strategy as training"""
         metadata = [
-            shared_data['reference_count'],
-            shared_data['reference_cosine'],
-            shared_data['citation_count'],
-            shared_data['citation_cosine'],
-            shared_data['author_count'],
-            shared_data['abstract_cosine']
+            float(shared_data['reference_count']),
+            float(shared_data['reference_cosine']),
+            float(shared_data['citation_count']),
+            float(shared_data['citation_cosine']),
+            float(shared_data['author_count']),
+            float(shared_data['abstract_cosine'])
         ]
         return torch.tensor(metadata, dtype=torch.float32)
 
@@ -155,117 +81,33 @@ class ModelInference:
                          paper1_SciBert: list,
                          paper2_SciBert: list,
                          shared_data: Dict[str, Any]) -> float:
-        """
-        Predict similarity between two papers using the trained model.
-        
-        Args:
-            paper1_SciBert: SciBERT embedding for paper 1
-            paper2_SciBert: SciBERT embedding for paper 2
-            shared_data: Dictionary containing shared features:
-                - reference_count: int
-                - reference_cosine: float
-                - citation_count: int
-                - citation_cosine: float
-                - author_count: int
-                - abstract_cosine: float
-        
-        Returns:
-            float: Similarity score between 0 and 1
-        """
+        """Predict similarity between two papers with calibration"""
         try:
             with torch.no_grad():
-                # Convert SciBERT embeddings to tensors
+                # Convert inputs to tensors
                 paper1_scibert = torch.tensor(paper1_SciBert, dtype=torch.float32).unsqueeze(0)
                 paper2_scibert = torch.tensor(paper2_SciBert, dtype=torch.float32).unsqueeze(0)
-                
-                # Create and normalize shared features tensor
                 shared_features = self.normalize_metadata(shared_data).unsqueeze(0)
                 
-                # Move tensors to device
+                # Move to device
                 paper1_scibert = paper1_scibert.to(self.device)
                 paper2_scibert = paper2_scibert.to(self.device)
                 shared_features = shared_features.to(self.device)
                 
-                # Get model predictions
+                # Get embeddings and compute similarity
                 embedding1, embedding2 = self.model(paper1_scibert, paper2_scibert, shared_features)
+                raw_similarity = F.cosine_similarity(embedding1, embedding2).cpu()
+                print(f"Raw similarity before calibration: {raw_similarity.item()}")
                 
-                # Calculate raw similarity score
-                raw_similarity = F.cosine_similarity(embedding1, embedding2).item()
+                # Apply calibration
+                calibrated_similarity = self.calibrator.calibrate(raw_similarity)
+                print(f"POST CALIBRATION SCORE: {calibrated_similarity.item()}")
                 
-                # Apply calibration if available
-                if self.calibrator is not None:
-                    similarity = self.calibrator.calibrate(
-                        torch.tensor([raw_similarity])
-                    ).item()
-                    return similarity
-                
-                return raw_similarity
+                return float(raw_similarity.item())
                 
         except Exception as e:
             raise Exception(f"Error during prediction: {str(e)}")
-
-def run_similarity_prediction(
-    model_path: str,
-    paper1_data: Dict[str, Any],
-    paper2_data: Dict[str, Any],
-    shared_data: Dict[str, Any],
-    calibrator_path: Optional[str] = None
-) -> float:
-    """
-    Wrapper function to run similarity prediction
-    
-    Args:
-        model_path: Path to trained model
-        paper1_data: Dictionary containing paper1's SciBERT embedding
-        paper2_data: Dictionary containing paper2's SciBERT embedding
-        shared_data: Dictionary containing shared metrics
-        calibrator_path: Optional path to saved calibrator state
-    
-    Returns:
-        float: Similarity score
-    """
-    try:
-        # Initialize model with optional calibrator
-        inference = ModelInference(model_path, calibrator_path)
         
-        # Run prediction
-        similarity = inference.predict_similarity(
-            paper1_SciBert=paper1_data['scibert'],
-            paper2_SciBert=paper2_data['scibert'],
-            shared_data=shared_data
-        )
         
-        return similarity
         
-    except Exception as e:
-        print(f"Error running similarity prediction: {str(e)}")
-        raise
-
-# Example usage:
-if __name__ == "__main__":
-    # Example data structure
-    paper1 = {
-        'scibert': [0.1] * 768  # SciBERT embedding
-    }
     
-    paper2 = {
-        'scibert': [0.2] * 768  # SciBERT embedding
-    }
-    
-    shared = {
-        'reference_count': 5,
-        'reference_cosine': 0.3,
-        'citation_count': 10,
-        'citation_cosine': 0.4,
-        'author_count': 2,
-        'abstract_cosine': 0.6
-    }
-    
-    similarity = run_similarity_prediction(
-        'path/to/model.pth',
-        paper1,
-        paper2,
-        shared,
-        calibrator_path='path/to/calibrator.pth'  # Optional
-    )
-    print(f"Predicted similarity: {similarity:.4f}")
