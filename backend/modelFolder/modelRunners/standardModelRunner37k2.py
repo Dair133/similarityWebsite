@@ -101,7 +101,7 @@ class ModelInference:
                 
                 # Apply calibration
                 calibrated_similarity = self.calibrator.calibrate(raw_similarity)
-                print(f"POST CALIBRATION SCORE: {calibrated_similarity.item()}")
+                print(f"POST CALIBRATION SCdORE: {calibrated_similarity.item()}")
                 
                 return float(raw_similarity.item())
                 
