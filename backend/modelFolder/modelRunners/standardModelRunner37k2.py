@@ -106,7 +106,7 @@ class ModelInference:
                 return float(raw_similarity.item())
                 
         except Exception as e:
-            raise Exception(f"Error during prediction: {str(e)}")
+            raise Exception(f"Error during predictions: {str(e)}")
         
         
         
