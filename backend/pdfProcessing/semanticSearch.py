@@ -275,7 +275,7 @@ class SemanticScholar:
             
             params = {
                 "query": term_info['term'],
-                "limit": 5,
+                "limit": 10,
                 "fields": fields
             }
             

@@ -5,96 +5,80 @@ from typing import Optional
 
 class SimilarityCalibrator:
     def __init__(self, 
-                 initial_temperature: float = 2.0,
-                 target_mean: float = 0.5,
-                 target_std: float = 0.25):
+                 initial_temperature: float = 1.0,
+                 target_mean: float = 0.55,
+                 target_std: float = 0.3):
         self.temperature = initial_temperature
         self.target_mean = target_mean
         self.target_std = target_std
-        self.running_mean = None
-        self.running_std = None
-        self.momentum = 0.1
+        self.reference_mean = None
+        self.reference_std = None
         
-    def fit(self, val_similarities: torch.Tensor) -> None:
-        """Compute calibration parameters using validation similarities"""
-        with torch.no_grad():
-            # Ensure input is a tensor and on CPU
-            if not isinstance(val_similarities, torch.Tensor):
-                val_similarities = torch.tensor(val_similarities)
-            val_similarities = val_similarities.float().cpu()
+    def load_reference_similarities(self, reference_path: str) -> None:
+        try:
+            saved_state = torch.load(reference_path)
             
-            # Remove any NaN values
-            val_similarities = val_similarities[~torch.isnan(val_similarities)]
-            
-            if len(val_similarities) == 0:
-                return
+            if 'metrics' in saved_state and 'raw_similarities' in saved_state['metrics']:
+                all_sims = []
+                for fold_sims in saved_state['metrics']['raw_similarities']:
+                    if isinstance(fold_sims, (list, np.ndarray)):
+                        all_sims.extend(fold_sims)
                 
-            current_mean = val_similarities.mean().item()
-            current_std = val_similarities.std().item()
-            
-            # Initialize running statistics if needed
-            if self.running_mean is None:
-                self.running_mean = current_mean
-                self.running_std = max(current_std, 1e-6)  # Prevent zero std
+                if all_sims:
+                    similarities = np.array(all_sims)
+                    self.reference_mean = float(np.percentile(similarities, 50))
+                    p95 = np.percentile(similarities, 95)
+                    p05 = np.percentile(similarities, 5)
+                    self.reference_std = float((p95 - p05) / 4)
+                    print(f"Loaded reference stats - Median: {self.reference_mean:.4f}")
             else:
-                # Update running statistics with momentum
-                self.running_mean = (1 - self.momentum) * self.running_mean + self.momentum * current_mean
-                self.running_std = max((1 - self.momentum) * self.running_std + self.momentum * current_std, 1e-6)
-            
-            # Adjust temperature based on distribution
-            if self.running_std > 0:
-                self.temperature = max(1.0, self.running_std / self.target_std)
+                self.reference_mean = 0.85
+                self.reference_std = 0.05
+                
+        except Exception as e:
+            print(f"Warning: Could not load reference similarities: {str(e)}")
+            self.reference_mean = 0.85
+            self.reference_std = 0.05
     
     def calibrate(self, similarities: torch.Tensor) -> torch.Tensor:
-        """Apply calibration to raw similarity scores"""
-        with torch.no_grad():
-            # Ensure input is a tensor
+        try:
             if not isinstance(similarities, torch.Tensor):
-                similarities = torch.tensor(similarities)
-            similarities = similarities.float()
+                similarities = torch.tensor(similarities, dtype=torch.float32)
             
-            # If running statistics aren't initialized, return raw similarities
-            if self.running_mean is None or self.running_std is None:
-                return torch.clamp(similarities, 0, 1)
+            similarities_np = similarities.numpy()
+            calibrated = np.zeros_like(similarities_np)
             
-            # Temperature scaling
-            scaled = similarities / self.temperature
+            # Refined thresholds for better high-end differentiation
+            super_high = 0.99   # New super high threshold
+            extreme_high = 0.98
+            very_high = 0.97
+            high = 0.95
+            med = 0.93
             
-            # Z-score normalization
-            normalized = (scaled - self.running_mean) / (self.running_std + 1e-8)
+            # Masks for different ranges
+            super_mask = similarities_np >= super_high
+            extreme_mask = (similarities_np >= extreme_high) & (similarities_np < super_high)
+            very_high_mask = (similarities_np >= very_high) & (similarities_np < extreme_high)
+            high_mask = (similarities_np >= high) & (similarities_np < very_high)
+            med_mask = (similarities_np >= med) & (similarities_np < high)
+            low_mask = similarities_np < med
             
-            # Transform to target distribution
-            calibrated = normalized * self.target_std + self.target_mean
+            # More granular scaling for top end
+            calibrated[super_mask] = 0.80 + (similarities_np[super_mask] - super_high) * 15.0
+            calibrated[extreme_mask] = 0.70 + (similarities_np[extreme_mask] - extreme_high) * 20.0
+            calibrated[very_high_mask] = 0.55 + (similarities_np[very_high_mask] - very_high) * 15.0
+            calibrated[high_mask] = 0.40 + (similarities_np[high_mask] - high) * 7.5
+            calibrated[med_mask] = 0.30 + (similarities_np[med_mask] - med) * 5.0
+            calibrated[low_mask] = 0.15 + (similarities_np[low_mask] - 0.9) * 3.0
             
-            # Ensure outputs are between 0 and 1
-            return torch.clamp(calibrated, 0, 1)
-
-def evaluate_fold(model, val_loader, calibrator=None):
-    device = next(model.parameters()).device
-    model.eval()
-    raw_similarities = []
-    calibrated_similarities = []
-    
-    with torch.no_grad():
-        for paper1, paper2, shared_features in val_loader:
-            paper1 = paper1.to(device)
-            paper2 = paper2.to(device)
-            shared_features = shared_features.to(device)
+            # Convert back to tensor
+            calibrated = torch.tensor(calibrated, dtype=torch.float32)
             
-            embedding1, embedding2 = model(paper1, paper2, shared_features)
-            similarity = F.cosine_similarity(embedding1, embedding2, dim=1).cpu()
-            raw_similarities.extend(similarity.numpy())
+            # Slightly lower clamp range
+            calibrated = torch.clamp(calibrated, 0.15, 0.82)
             
-            # Apply calibration if calibrator is provided
-            if calibrator is not None:
-                calibrated = calibrator.calibrate(similarity)
-                calibrated_similarities.extend(calibrated.numpy())
-    
-    raw_similarities = np.array(raw_similarities)
-    
-    if calibrator is not None:
-        # Fit calibrator on new validation data
-        calibrator.fit(torch.tensor(raw_similarities))
-        return raw_similarities, np.array(calibrated_similarities)
-        
-    return raw_similarities
+            return calibrated
+            
+        except Exception as e:
+            print(f"Error in calibration: {str(e)}")
+            return similarities

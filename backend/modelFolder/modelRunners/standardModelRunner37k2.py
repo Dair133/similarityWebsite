@@ -15,30 +15,21 @@ import numpy as np
 
 class ModelInference:
     def __init__(self, model_path: str, calibrator_path: Optional[str] = None):
-        """
-        Initialize the inference setup for the trained model.
-        
-        Args:
-            model_path: Path to your .pth model file
-            calibrator_path: Optional path to saved calibrator state
-        """
         self.device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         
         # Load the model and move to device
         self.model = self.load_model(model_path)
         self.model.eval()
         
-        # Initialize calibrator with pre-computed statistics
+        # Initialize calibrator and load reference data
         self.calibrator = SimilarityCalibrator(
-            initial_temperature=2.0,
-            target_mean=0.5,
-            target_std=0.25
-        )
+    initial_temperature=2.5,    # Increased from 1.5
+    target_mean=0.5,           # Changed from 0.6
+    target_std=0.35           # Increased from 0.15
+)
         
-        # If we have calibrator statistics, load them
         if calibrator_path:
-            self.load_calibrator_state(calibrator_path)
-    
+            self.calibrator.load_reference_similarities(calibrator_path)
     def load_model(self, model_path: str) -> nn.Module:
         """Load the trained model from path"""
         try:
@@ -81,7 +72,6 @@ class ModelInference:
                          paper1_SciBert: list,
                          paper2_SciBert: list,
                          shared_data: Dict[str, Any]) -> float:
-        """Predict similarity between two papers with calibration"""
         try:
             with torch.no_grad():
                 # Convert inputs to tensors
@@ -97,17 +87,16 @@ class ModelInference:
                 # Get embeddings and compute similarity
                 embedding1, embedding2 = self.model(paper1_scibert, paper2_scibert, shared_features)
                 raw_similarity = F.cosine_similarity(embedding1, embedding2).cpu()
-                print(f"Raw similarity before calibration: {raw_similarity.item()}")
+                
+                # Debug prints
+                print(f"Raw similarity: {raw_similarity.item():.4f}")
                 
                 # Apply calibration
                 calibrated_similarity = self.calibrator.calibrate(raw_similarity)
-                print(f"POST CALIBRATION SCdORE: {calibrated_similarity.item()}")
+                print(f"Calibrated similarity: {calibrated_similarity.item():.4f}")
                 
-                return float(raw_similarity.item())
+                return float(calibrated_similarity.item())
                 
         except Exception as e:
-            raise Exception(f"Error during predictions: {str(e)}")
-        
-        
-        
-    
+            print(f"Error during prediction: {str(e)}")
+            return float(raw_similarity.item())  # Fallback to raw similarity if calibra

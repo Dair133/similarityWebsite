@@ -26,3 +26,4 @@ yarn-error.log*
 .env.txt
 .pyc
 backend/testing/~$seedPaper.xlsx
+.pdf

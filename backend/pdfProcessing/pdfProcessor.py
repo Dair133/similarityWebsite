@@ -198,51 +198,47 @@ class PDFProcessor:
      try:
         result = {
             'title': '',
-            'domain': '',
-            'method_type': '',
-            'core_methodology': [],
-            'key_findings': [],
-            'subject_tags': []
+            'core_methodologies': [],
+            'conceptual_angles': [],
+            'random': []
         }
 
-        lines = info_string.split('\n')  # Split by newlines first
-        current_section = None
+        sections = info_string.split('\n')
         
-        for line in lines:
+        for line in sections:
             line = line.strip()
             if not line:
                 continue
-                
-            # Handle title specially
+            
             if line.startswith('TITLE:'):
-                # Remove brackets and extra whitespace
-                title = line[6:].strip('[]').strip()
-                result['title'] = title
-            elif line.startswith('DOMAIN:'):
-                result['domain'] = line[7:].strip()
-            elif line.startswith('METHOD_TYPE:'):
-                result['method_type'] = line[12:].strip()
-            elif line.startswith('CORE_METHODOLOGY:'):
-                if ':' in line:
-                    methods = line[17:].strip()
-                    methods = [m.strip('[]').strip() for m in methods.split(',')]
-                    result['core_methodology'] = [m for m in methods if m]
-            elif line.startswith('KEY_FINDINGS:'):
-                if ':' in line:
-                    findings = line[13:].strip()
-                    findings = [f.strip('[]').strip() for f in findings.split(',')]
-                    result['key_findings'] = [f for f in findings if f]
-            elif line.startswith('SUBJECT_TAGS:'):
-                if ':' in line:
-                    tags = line[13:].strip()
-                    tags = [t.strip('[]').strip() for t in tags.split(',')]
-                    result['subject_tags'] = [t for t in tags if t]
+                result['title'] = line[len('TITLE:'):].strip('[]').strip()
+            elif line.startswith('CORE_METHODOLOGIES:'):  # Has colon
+                content = line[len('CORE_METHODOLOGIES:'):].strip('[]').strip()
+                if content:
+                    result['core_methodologies'] = [
+                        item.strip() for item in content.split(',') 
+                        if item.strip()
+                    ]
+            elif line.startswith('CONCEPTUAL_ANGLES:'):  # Added colon here
+                content = line[len('CONCEPTUAL_ANGLES:'):].strip('[]').strip()
+                if content:
+                    result['conceptual_angles'] = [
+                        item.strip() for item in content.split(',') 
+                        if item.strip()
+                    ]
+            elif line.startswith('RANDOM:'):  # Added colon here
+                content = line[len('RANDOM:'):].strip('[]').strip()
+                if content:
+                    result['random'] = [
+                        item.strip() for item in content.split(',') 
+                        if item.strip()
+                    ]
 
-        print(f"Parsed title: '{result['title']}'")  # Debug print
+        self.logger.debug(f"Parsed paper info: {result}")
         return result
             
      except Exception as e:
-        self.logger.error(f"Error parsing info string: {str(e)}")
+        self.logger.error(f"Error parsing paper info: {str(e)}")
         return None
 
     def parse_haiku_output(output: str) -> Dict[str, Union[str, Dict]]:

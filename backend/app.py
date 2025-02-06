@@ -34,38 +34,39 @@ from transformers import AutoTokenizer, AutoModel
 from concurrent.futures import ThreadPoolExecutor
 
 claudeInstruction_extractTitleMethodInfo = """
-Given a scientific paper, perform a DETERMINISTIC analysis by following these steps to extract key features for semantic search:
+Extract the paper title and core methodologies. Each methodology should combine a fundamental technique with 1-2 scope-defining terms to ensure relevant but not overly narrow results.
+IMPORTANT:The resulting search result should provide upon using it for a text search similar papers,  i.e. papers which touch on the 1 or 3 KEY AREAS OF THE PAPER IMPORTANT
+Rules:
+1. TITLE: Exact paper title
+2. Each CORE_METHODOLOGY should be:,A basic technique/method + scope qualifier,General enough to catch variations,Specific enough to stay relevant
+3. A very short sentence which takes the topics presented in the paper and upon text search would return papers with an interesting slant on the orignal topics
+4. Maximum of 3 core methodologies
+5. Format each as: [basic_technique] + [scope_term(s)]
+6. Random should be tipic unrelated to scientific paper
 
-1. First identify:
-TITLE: Exact paper title
-DOMAIN: Primary research domain (e.g. epidemiology, machine learning, etc.)
-METHOD_TYPE: Core methodology type (experimental, observational, computational, theoretical)
+Good examples:
+For a neural network paper:"Gradient optimization for adversarial attacks","Cross validation for network robustness","Model compression for edge devices"
 
-2. Then extract ONLY:
+For a genomics paper:"Clustering for gene expression","Sequence alignment for protein families","Feature selection for biomarkers"
 
-CORE_METHODOLOGY: 
-- Specific techniques/methods used (max 3, comma-separated)
-- Must be concrete methods, not general approaches
-- Example: "logistic regression, survival analysis" NOT "statistical analysis"
+Bad examples:
+Too general: "Neural networks", "Clustering algorithms","Statistical analysis"
 
-KEY_FINDINGS:
-- Main numerical/empirical results (max 2)
-- Must be specific to this paper
-- Example: "90% classification accuracy" NOT "improved performance"
+Too specific: "Three-layer perceptron with ReLU for MNIST","K-means clustering of 50000 gene sequences","Chi-square analysis of patient outcomes"
 
-SUBJECT_TAGS:
-- Specific subject matter tags (max 3)
-- Must be from standardized vocabulary list
-- Example: "coronary artery disease" NOT "heart problems"
-
-3. Output format must be exactly:
+Output format:
 TITLE: [exact paper title];
-DOMAIN: [single domain];
-METHOD_TYPE: [single type];
-CORE_METHODOLOGY: [up to 3 methods];
-KEY_FINDINGS: [up to 2 results];
-SUBJECT_TAGS: [up to 3 tags];
+CORE_METHODOLOGIES: [method1, method2, method3];
+CONCEPTUAL_ANGLES: [angle1, angle2, angle3s];
+RANDOM: [ 'mountain climbing','abstract painting','quantum dice' ]
+Note: Keep it simple - basic technique plus scope, nothing more. For interesting slant, keep it simple main ideas of paper + something more abstract then core method
+ANY DEVIATION IN THIS FORMAT WILL LEAD TO ERRORS IN A DETERMINISTIC SYSTEM
+DO NOT ALTER THE OUTPUT FORMAT WITH NEW LINES DASHES OR ANY OTHER CHARACTER STCK STRICTLY TO OUTLINED FORMAT
+
+
 """
+
+
 
 claudeInstruction_extractAllInfo = '''Given a scientific paper, perform a DETERMINISTIC analysis by following these strict steps in order. Your output must be EXACTLY consistent across multiple runs.
 
@@ -181,9 +182,9 @@ def process_pdf_route():
                             'references': semanticScholarPaperInfo['references']
                         },
                         'abstract_info': {
-                            'core_concepts': pdfInfoStruct['key_findings'],
-                            'core_methodologies': pdfInfoStruct['core_methodology'],
-                            'related_methodologies': pdfInfoStruct['subject_tags']
+                            'core_concepts': pdfInfoStruct['core_methodologies'],
+                            'conceptual_angles':pdfInfoStruct['conceptual_angles'],
+                            'random':pdfInfoStruct['random']
                         }
                     }
                 else:
@@ -224,60 +225,34 @@ def process_pdf_route():
                 startTime = time.time()
                 semanticScholar = SemanticScholar()
                 cache = SearchTermCache()
-
-                # Prepare all search terms
                 search_terms = []
-                if pdfInfoStruct['domain']:
-                    search_terms.append({
-                        'term': pdfInfoStruct['domain'],
-                        'type': 'domain',
-                        'weight': 1.0
-                    })
+                 # Add core methodologies with high weight since they're specific
+                if 'core_methodologies' in pdfInfoStruct and pdfInfoStruct['core_methodologies']:
+                 for methodology in pdfInfoStruct['core_methodologies']:
+                   search_terms.append({
+               'term': methodology,
+               'type': 'core_methodology',
+               'weight': 1.0 # High weight for specific methodologies
+           })
+                if 'conceptual_angles' in pdfInfoStruct and pdfInfoStruct['conceptual_angles']:
+                 for conceptualAngle in pdfInfoStruct['conceptual_angles']:
+                   search_terms.append({
+               'term': conceptualAngle,
+               'type': 'conceptual_angles',
+               'weight': 1.0 # High weight for specific methodologies
+           })
+                if 'random' in pdfInfoStruct and pdfInfoStruct['random']:
+                 for randomSubject in pdfInfoStruct['random']:
+                   search_terms.append({
+               'term': randomSubject,
+               'type': 'random',
+               'weight': 1.0 # High weight for specific methodologies
+           })
 
-                # Add method type as search context
-                if pdfInfoStruct['method_type']:
-                    search_terms.append({
-                        'term': pdfInfoStruct['method_type'],
-                        'type': 'method_type',
-                        'weight': 1.0
-                    })
-
-                # Add core methodologies
-                for methodology in pdfInfoStruct['core_methodology']:
-                    search_terms.append({
-                        'term': methodology,
-                        'type': 'core_methodology', 
-                        'weight': 2.0
-                    })
-
-                # Add specific findings  
-                for finding in pdfInfoStruct['key_findings']:
-                    search_terms.append({
-                        'term': finding,
-                        'type': 'key_finding',
-                        'weight': 1.5
-                    })
-
-                # Add subject tags
-                for tag in pdfInfoStruct['subject_tags']:
-                    search_terms.append({
-                        'term': tag,
-                        'type': 'subject_tag',
-                        'weight': 1.8
-                    })
-
-                # if not cache.is_cache_valid(pdfName):
-                #  # Cache the results
-                #  paper_title = pdfInfoStruct['title']
-                # # Cache the terms
-                #  cache.cache_search_terms(
-                #  pdf_filename=pdfName,
-                #  paper_title=pdfName
-                #  search_terms=search_terms
-                #     )
-                
                 # Do all searches in parallel
                 startTime = time.time()
+                print('search terms are')
+                print(search_terms)
                 papersReturnedThroughSearch = semanticScholar.search_papers_parallel(search_terms, api_key_semantic)
                 endTime = time.time()
                 print(f"Time taken for searching using core techniques: {endTime - startTime} seconds")          
@@ -307,6 +282,11 @@ def process_pdf_route():
                 endTime = time.time()
                 print(f"Time taken for filtering similar papers: {endTime - startTime} seconds")
         
+        
+                # Remove the 'scibert' attribute from relatively similar papers
+                for paper in relativelySimilarPapers:
+                    if 'scibert' in paper['paper_info']:
+                        del paper['paper_info']['scibert']
                 # Clean up and return
                 os.remove(filepath)
                 result['seed_paper'] = seedPaper
@@ -418,7 +398,7 @@ def compare_papers(seed_paper, papers_returned_through_search):
                 print(f"Error in similarity prediction: {str(e)}")
                 similarity = 0.0
             
-            print(similarity)
+            # print(similarity)
             compared_paper = {
                 'source_info': paper.get('source_info', {}),
                 'paper_info': paper.get('paper_info', {}),
