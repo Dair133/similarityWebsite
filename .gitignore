@@ -24,6 +24,13 @@ yarn-error.log*
 
 # Python enviorment(api keys)
 .env.txt
-.pyc
+
 backend/testing/~$seedPaper.xlsx
 .pdf
+
+
+# Python
+*.pyc
+__pycache__/
+*.py[cod]
+*$py.class
