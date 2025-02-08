@@ -28,6 +28,11 @@ function UploadPDF({ onResultsUpdate }) {
     };
   }, [previewUrl]);
 
+
+
+
+
+  
   const handleUpload = async (file) => {
     try {
       setProcessing(true);
@@ -57,66 +62,81 @@ function UploadPDF({ onResultsUpdate }) {
     }
   };
 
-  return (
-    <div style={{
-      width: '40%',
-      backgroundColor: 'red',
-      minHeight: '100vh',
-      padding: '2rem',
-      boxSizing: 'border-box',
-    }}>
-      <div style={{
-        backgroundColor: 'white',
-        borderRadius: '8px',
-        padding: '2rem',
-        width: '100%',
-        maxWidth: '500px',
-        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
-      }}>
-        <h2 style={{
-          fontSize: '24px',
-          color: '#333',
-          marginBottom: '1.5rem',
-        }}>Upload PDF</h2>
-        
-        <input
-          type="file"
-          accept=".pdf"
-          onChange={handleFileChange}
-          style={{
-            width: '100%',
-            padding: '1rem',
-            border: '2px dashed #ccc',
-            borderRadius: '4px',
-            marginBottom: '1rem',
-            cursor: 'pointer',
-          }}
-        />
-        
-        {selectedFile && (
-          <div style={{
-            color: '#666',
-            fontSize: '14px',
-            marginBottom: '1rem',
-          }}>
-            Selected file: {selectedFile.name}
-          </div>
-        )}
-        
-        {processing && (
-          <div style={{
-            color: '#666',
-            fontSize: '14px',
-            marginBottom: '1rem',
-          }}>
-            Processing...
-          </div>
-        )}
 
-        {previewUrl && <PDFViewer url={previewUrl} />}
-      </div>
+// Define all styles in a single object for clarity and reuse
+const styles = {
+  container: {
+    width: '50%',
+    backgroundColor: 'red',
+    minHeight: '100vh',
+    padding: '2rem',
+    boxSizing: 'border-box',
+  },
+  innerBox: {
+    backgroundColor: 'white',
+    borderRadius: '8px',
+    padding: '2rem',
+    width: '90%',
+    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+  },
+  title: {
+    fontSize: '24px',
+    color: '#333',
+    marginBottom: '1.5rem',
+  },
+  input: {
+    width: '100%',
+    padding: '1rem',
+    border: '2px dashed #ccc',
+    boxSizing: 'border-box',
+    borderRadius: '4px',
+    marginBottom: '1rem',
+    cursor: 'pointer',
+  },
+  fileInfo: {
+    color: '#666',
+    fontSize: '14px',
+    marginBottom: '1rem',
+  },
+  processing: {
+    color: '#666',
+    fontSize: '14px',
+    marginBottom: '1rem',
+  },
+  viewerArea: {
+    marginTop: '20px',
+    width: '100%',
+  },
+};
+
+
+return (
+  <div style={styles.container}>
+    <div style={styles.innerBox}>
+      <h2 style={styles.title}>Upload PDF</h2>
+      <input
+        type="file"
+        accept=".pdf"
+        onChange={handleFileChange}
+        style={styles.input}
+      />
+      {selectedFile && (
+        <div style={styles.fileInfo}>
+          Selected file: {selectedFile.name}
+        </div>
+      )}
+      {processing && (
+        <div style={styles.processing}>Processing...</div>
+      )}
+      {previewUrl && (
+        <div style={styles.viewerArea}>
+          <h3>PDF Preview:</h3>
+          <PDFViewer url={previewUrl} />
+        </div>
+      )}
     </div>
-  );
+  </div>
+);
 }
 
 export default UploadPDF;

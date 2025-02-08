@@ -8,8 +8,8 @@ function ListResults({ results }){
 // Inline styling for the component
 const styles = {
   container: {
-    width: '60%', // Set to 60% of parent width
-    backgroundColor: 'blue',
+    width: '50%', // Set to 60% of parent width
+    backgroundColor: 'white',
     padding: '2%',
     boxSizing: 'border-box',
     // Remove display: inline-block and float properties

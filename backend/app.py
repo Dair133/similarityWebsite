@@ -1,5 +1,6 @@
 # backend/routes/upload_routes.py
 # APP.py script
+import logging
 import time
 from flask import Blueprint, request, jsonify
 from typing import Dict, Any
@@ -13,6 +14,7 @@ from pdfProcessing.semanticSearch import SemanticScholar
 # Import for model runners
 from modelFolder.modelRunners.standardModelRunner37k2 import ModelInference
 from modelFolder.modelRunners.lowSciBertModelRunner import LowSciBertModelInference  # Import the new model inference class
+from modelFolder.modelRunners.standardModelRunner37k3 import ModelInferenceThree
 
 from modelFolder.metricsCalculator import MetricsCalculator
 from pdfProcessing.SearchTermCache import SearchTermCache
@@ -362,8 +364,8 @@ def create_app():
 # This function should probably be moved to another file????//
 def compare_papers(seed_paper, papers_returned_through_search):
     try:
-        inference = ModelInference(
-            model_path="modelFolder/standardModel-2-37k.pth",
+        inference = ModelInferenceThree(
+            model_path="modelFolder/standardModel-3-37k.pth",
         )
         metricCalculator = MetricsCalculator()
         
@@ -395,10 +397,9 @@ def compare_papers(seed_paper, papers_returned_through_search):
                     shared_data=shared_data
                 )
             except Exception as e:
-                print(f"Error in similarity prediction: {str(e)}")
+                logging.error(f"Error in similarity prediction: {str(e)}")
                 similarity = 0.0
             
-            # print(similarity)
             compared_paper = {
                 'source_info': paper.get('source_info', {}),
                 'paper_info': paper.get('paper_info', {}),
@@ -415,7 +416,7 @@ def compare_papers(seed_paper, papers_returned_through_search):
         }
         
     except Exception as e:
-        print(f"Error occurred during paper comparison: {str(e)}")
+        logging.error(f"Error occurred during paper comparison: {str(e)}")
         raise
 
 if __name__ == '__main__':

@@ -1,20 +1,51 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Document, Page } from 'react-pdf';
-import '../pdfjs-config';  // Import the config
+import '../pdfjs-config';
+import 'react-pdf/dist/esm/Page/AnnotationLayer.css';
+import 'react-pdf/dist/esm/Page/TextLayer.css';
 
 function PDFViewer({ url }) {
   const [numPages, setNumPages] = useState(null);
   const [pageNumber, setPageNumber] = useState(1);
   const [error, setError] = useState(null);
+  const [scale, setScale] = useState(1.5);
+  const containerRef = useRef(null);
+
+  // Handle responsive scaling
+  useEffect(() => {
+    const updateScale = () => {
+      if (containerRef.current) {
+        const containerWidth = containerRef.current.clientWidth;
+        // Base scale on container width
+        // You can adjust these values based on your needs
+        if (containerWidth < 400) {
+          setScale(0.8);  // Smaller screens
+        } else if (containerWidth < 768) {
+          setScale(1.2);  // Medium screens
+        } else {
+          setScale(1.5);  // Larger screens
+        }
+      }
+    };
+
+    // Initial scale set
+    updateScale();
+
+    // Update scale on window resize
+    const handleResize = () => {
+      updateScale();
+    };
+
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const zoomOut = () => setScale(prevScale => Math.max(0.5, prevScale - 0.2));
+  const zoomIn = () => setScale(prevScale => Math.min(3, prevScale + 0.2));
 
   function onDocumentLoadSuccess({ numPages }) {
     setNumPages(numPages);
     setError(null);
-  }
-
-  function onDocumentLoadError(error) {
-    console.error('PDF Load Error:', error);
-    setError('Failed to load PDF. Please try again.');
   }
 
   const styles = {
@@ -30,6 +61,8 @@ function PDFViewer({ url }) {
       gap: '1rem',
       alignItems: 'center',
       marginBottom: '1rem',
+      flexWrap: 'wrap', // Allow controls to wrap on small screens
+      justifyContent: 'center',
     },
     pageInfo: {
       color: '#666',
@@ -40,25 +73,37 @@ function PDFViewer({ url }) {
       border: '1px solid #ddd',
       borderRadius: '4px',
       cursor: 'pointer',
+      minWidth: '40px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
     },
     documentWrapper: {
+      width: '100%',
       maxWidth: '100%',
       border: '1px solid #ddd',
       borderRadius: '4px',
       padding: '1rem',
       backgroundColor: '#fff',
+      boxSizing: 'border-box',
+      overflow: 'auto',
     },
-    errorMessage: {
-      color: 'red',
+    zoomControls: {
+      display: 'flex',
+      gap: '0.5rem',
+      alignItems: 'center',
+    },
+    zoomText: {
+      color: '#666',
+      minWidth: '60px',
       textAlign: 'center',
-      padding: '1rem',
     }
   };
 
   return (
-    <div style={styles.container}>
+    <div style={styles.container} ref={containerRef}>
       {error ? (
-        <div style={styles.errorMessage}>{error}</div>
+        <div style={{ color: 'red', padding: '1rem' }}>{error}</div>
       ) : (
         <>
           {numPages && (
@@ -80,6 +125,12 @@ function PDFViewer({ url }) {
               >
                 Next
               </button>
+              
+              <div style={styles.zoomControls}>
+                <button style={styles.button} onClick={zoomOut}>-</button>
+                <span style={styles.zoomText}>{Math.round(scale * 100)}%</span>
+                <button style={styles.button} onClick={zoomIn}>+</button>
+              </div>
             </div>
           )}
 
@@ -87,14 +138,13 @@ function PDFViewer({ url }) {
             <Document
               file={url}
               onLoadSuccess={onDocumentLoadSuccess}
-              onLoadError={onDocumentLoadError}
               loading={<div>Loading PDF...</div>}
               error={<div>Failed to load PDF.</div>}
             >
               <Page 
                 key={`page_${pageNumber}`}
                 pageNumber={pageNumber} 
-                width={500}
+                scale={scale}
                 renderTextLayer={true}
                 renderAnnotationLayer={true}
               />
