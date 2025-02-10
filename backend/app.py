@@ -34,7 +34,7 @@ import os
 from torch.nn.functional import cosine_similarity
 from transformers import AutoTokenizer, AutoModel
 from concurrent.futures import ThreadPoolExecutor
-
+# Think of search paper string as seed
 claudeInstruction_extractTitleMethodInfo = """
 Extract the paper title and core methodologies. Each methodology should combine a fundamental technique with 1-2 scope-defining terms to ensure relevant but not overly narrow results.
 IMPORTANT:The resulting search result should provide upon using it for a text search similar papers,  i.e. papers which touch on the 1 or 3 KEY AREAS OF THE PAPER IMPORTANT
