@@ -1,19 +1,22 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 
+function ListResults({ results }) {
+  const [isVisible, setIsVisible] = useState(false);
 
+  useEffect(() => {
+    if (results) {
+      setIsVisible(true);
+    }
+  }, [results]);
 
-
-function ListResults({ results }){
-
-// Inline styling for the component
-const styles = {
-  container: {
-    width: '50%', // Set to 60% of parent width
-    backgroundColor: 'white',
-    padding: '2%',
-    boxSizing: 'border-box',
-    // Remove display: inline-block and float properties
-  },
+  // Inline styling for the component
+  const styles = {
+    container: {
+      width: '50%',
+      backgroundColor: 'white',
+      padding: '2%',
+      boxSizing: 'border-box',
+    },
     title: {
       fontSize: '24px',
       color: 'black',
@@ -41,10 +44,12 @@ const styles = {
       marginTop: '20px',
       width: '100%',
       textAlign: 'left',
+      opacity: isVisible ? 1 : 0,
+      transition: 'opacity 0.5s ease-in',
     },
   };
 
-  // A helper to render the Semantic Scholar info (or any info object)
+  // A helper to render the Semantic Scholar info
   const renderSemanticScholarInfo = (info) => {
     if (!info) return null;
     if (typeof info === 'string') {
@@ -61,53 +66,37 @@ const styles = {
     );
   };
 
-    return(
-        <div style={styles.container}>
-            <h2 style={styles.title}>List Of Results</h2>
-            {results && (
-            <div style={styles.results}>
-              <h3>Semantic Scholar Info:</h3>
-              {renderSemanticScholarInfo(results.seed_paper.paper_info.abstract)}
-              <h3>Semantic Scholar Abstract Info:</h3>
-              {renderSemanticScholarInfo(results.abstract_info)}
-              <h3>Similar Papers</h3>
-              <ul>
-                {results.similarity_results.map((paper, index) => (
-                  <li key={index}>
-                    <strong>Title:</strong> {paper.title} <br />
-                    <strong>Paper ID:</strong> {paper.id} -{' '}
-                    <strong>Similarity Score:</strong>{' '}
-                    {paper.similarity_score}
-                    <br />
-                    <strong>Source Info:</strong>{' '}
-                    {paper.source_info[0].search_term}
-                    {paper.source_info[0].search_type}
-                    <p>
-                      <strong>Abstract:</strong> {paper.paper_info.abstract}
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
+  return (
+    <div style={styles.container}>
+      <h2 style={styles.title}>List Of Results</h2>
+      {results && (
+        <div style={styles.results}>
+          <h3>Semantic Scholar Info:</h3>
+          {renderSemanticScholarInfo(results.seed_paper.paper_info.abstract)}
+          <h3>Semantic Scholar Abstract Info:</h3>
+          {renderSemanticScholarInfo(results.abstract_info)}
+          <h3>Similar Papers</h3>
+          <ul>
+            {results.similarity_results.map((paper, index) => (
+              <li key={index}>
+                <strong>Title:</strong> {paper.title} <br />
+                <strong>Paper ID:</strong> {paper.id} -{' '}
+                <strong>Similarity Score:</strong>{' '}
+                {paper.similarity_score}
+                <br />
+                <strong>Source Info:</strong>{' '}
+                {paper.source_info[0].search_term}
+                {paper.source_info[0].search_type}
+                <p>
+                  <strong>Abstract:</strong> {paper.paper_info.abstract}
+                </p>
+              </li>
+            ))}
+          </ul>
         </div>
-    )
-        
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+      )}
+    </div>
+  );
 }
 
-export default ListResults
+export default ListResults;
