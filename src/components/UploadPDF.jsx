@@ -68,7 +68,7 @@ const styles = {
   container: {
     width: '50%',
     backgroundColor: 'red',
-    minHeight: '100vh',
+    height:'95vh',
     padding: '2rem',
     boxSizing: 'border-box',
   },

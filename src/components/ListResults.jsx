@@ -1,21 +1,25 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
+import FadeIn from 'react-fade-in';
+function ListResults({ results, toggleGraphView, setParentResults }) {
+  // Using { results } is the equivalent of doing
+  // const results = props.results;
+  // Here we are using Javascript object destructuring
 
-function ListResults({ results }) {
-  const [isVisible, setIsVisible] = useState(false);
 
-  useEffect(() => {
-    if (results) {
-      setIsVisible(true);
-    }
-  }, [results]);
+  const [localResults, setLocalResults] = useState(null);
+
+
+
 
   // Inline styling for the component
   const styles = {
     container: {
       width: '50%',
-      backgroundColor: 'white',
+      height:'95vh',
+      backgroundColor: 'yellow',
       padding: '2%',
       boxSizing: 'border-box',
+      overflow: 'auto',
     },
     title: {
       fontSize: '24px',
@@ -44,12 +48,26 @@ function ListResults({ results }) {
       marginTop: '20px',
       width: '100%',
       textAlign: 'left',
-      opacity: isVisible ? 1 : 0,
-      transition: 'opacity 0.5s ease-in',
     },
+    button: { // Added style for the button
+      backgroundColor: '#4CAF50', // Green
+      border: 'none',
+      color: 'white',
+      padding: '10px 20px',
+      textAlign: 'center',
+      textDecoration: 'none',
+      display: 'inline-block',
+      fontSize: '16px',
+      margin: '4px 2px',
+      cursor: 'pointer',
+      borderRadius: '4px',
+    },
+    NodeGraphContainer: {
+      visibility:'hidden'
+    }
   };
 
-  // A helper to render the Semantic Scholar info
+  // A helper to render the Semantic Scholar info (or any info object)
   const renderSemanticScholarInfo = (info) => {
     if (!info) return null;
     if (typeof info === 'string') {
@@ -66,18 +84,54 @@ function ListResults({ results }) {
     );
   };
 
+
+  const generateFakeResults = () => {
+    const fakePapers = Array.from({ length: 10 }, (_, i) => ({
+      title: `Fake Paper Title ${i + 1}`,
+      id: `fake-id-${i + 1}`,
+      similarity_score: (1 - i * 0.1).toFixed(2), // Decreasing similarity
+      source_info: [{ search_term: "Fake Search", search_type: "Fake Type" }],
+      paper_info: { abstract: `This is a fake abstract for paper ${i + 1}. It's short and sweet.` },
+    }));
+
+    const fakeResultsData = {
+      seed_paper: {
+        paper_info: {
+          abstract: "This is a fake abstract for the seed paper."
+        }
+      },
+      abstract_info: "Fake abstract information.",
+      similarity_results: fakePapers
+    };
+
+    setLocalResults(fakeResultsData);
+
+    // The below line should be removed as normally this componenet will never set result data
+    // Its only so I can test the node graph
+    setParentResults(fakeResultsData)
+  };
+
+
+  const displayResults = localResults || results;
+
+
   return (
     <div style={styles.container}>
       <h2 style={styles.title}>List Of Results</h2>
-      {results && (
+      <button onClick={toggleGraphView}>Swap</button>
+       <button style={styles.button} onClick={generateFakeResults}>
+        Fake Results
+      </button>
+      {displayResults && (
         <div style={styles.results}>
           <h3>Semantic Scholar Info:</h3>
-          {renderSemanticScholarInfo(results.seed_paper.paper_info.abstract)}
+          {renderSemanticScholarInfo(displayResults.seed_paper.paper_info.abstract)}
           <h3>Semantic Scholar Abstract Info:</h3>
-          {renderSemanticScholarInfo(results.abstract_info)}
+          {renderSemanticScholarInfo(displayResults.abstract_info)}
           <h3>Similar Papers</h3>
           <ul>
-            {results.similarity_results.map((paper, index) => (
+           <FadeIn>
+            {displayResults.similarity_results.map((paper, index) => (
               <li key={index}>
                 <strong>Title:</strong> {paper.title} <br />
                 <strong>Paper ID:</strong> {paper.id} -{' '}
@@ -92,6 +146,7 @@ function ListResults({ results }) {
                 </p>
               </li>
             ))}
+           </FadeIn>
           </ul>
         </div>
       )}
