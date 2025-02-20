@@ -1,15 +1,25 @@
 import React, { useState } from 'react';
 import FadeIn from 'react-fade-in';
-function ListResults({ results }) {
+function ListResults({ results, toggleGraphView, setParentResults }) {
+  // Using { results } is the equivalent of doing
+  // const results = props.results;
+  // Here we are using Javascript object destructuring
+
+
   const [localResults, setLocalResults] = useState(null);
+
+
+
 
   // Inline styling for the component
   const styles = {
     container: {
       width: '50%',
-      backgroundColor: 'white',
+      height:'95vh',
+      backgroundColor: 'yellow',
       padding: '2%',
       boxSizing: 'border-box',
+      overflow: 'auto',
     },
     title: {
       fontSize: '24px',
@@ -52,6 +62,9 @@ function ListResults({ results }) {
       cursor: 'pointer',
       borderRadius: '4px',
     },
+    NodeGraphContainer: {
+      visibility:'hidden'
+    }
   };
 
   // A helper to render the Semantic Scholar info (or any info object)
@@ -92,6 +105,10 @@ function ListResults({ results }) {
     };
 
     setLocalResults(fakeResultsData);
+
+    // The below line should be removed as normally this componenet will never set result data
+    // Its only so I can test the node graph
+    setParentResults(fakeResultsData)
   };
 
 
@@ -101,20 +118,19 @@ function ListResults({ results }) {
   return (
     <div style={styles.container}>
       <h2 style={styles.title}>List Of Results</h2>
+      <button onClick={toggleGraphView}>Swap</button>
        <button style={styles.button} onClick={generateFakeResults}>
         Fake Results
       </button>
- 
       {displayResults && (
         <div style={styles.results}>
-
           <h3>Semantic Scholar Info:</h3>
           {renderSemanticScholarInfo(displayResults.seed_paper.paper_info.abstract)}
           <h3>Semantic Scholar Abstract Info:</h3>
           {renderSemanticScholarInfo(displayResults.abstract_info)}
           <h3>Similar Papers</h3>
           <ul>
-          <FadeIn>
+           <FadeIn>
             {displayResults.similarity_results.map((paper, index) => (
               <li key={index}>
                 <strong>Title:</strong> {paper.title} <br />
@@ -130,9 +146,8 @@ function ListResults({ results }) {
                 </p>
               </li>
             ))}
-                      </FadeIn>
+           </FadeIn>
           </ul>
-
         </div>
       )}
     </div>
