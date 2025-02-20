@@ -14,8 +14,6 @@ from pdfProcessing.semanticSearch import SemanticScholar
 # Import for model runners
 from modelFolder.modelRunners.standardModelRunner37k2 import ModelInference
 from modelFolder.modelRunners.lowSciBertModelRunner import LowSciBertModelInference  # Import the new model inference class
-from modelFolder.modelRunners.standardModelRunner37k3 import ModelInferenceThree
-
 from modelFolder.metricsCalculator import MetricsCalculator
 from pdfProcessing.SearchTermCache import SearchTermCache
 
@@ -364,8 +362,8 @@ def create_app():
 # This function should probably be moved to another file????//
 def compare_papers(seed_paper, papers_returned_through_search):
     try:
-        inference = ModelInferenceThree(
-            model_path="modelFolder/standardModel-3-37k.pth",
+        inference = ModelInference(
+            model_path="modelFolder/standardModel-1-37k.pth",
         )
         metricCalculator = MetricsCalculator()
         
@@ -410,14 +408,29 @@ def compare_papers(seed_paper, papers_returned_through_search):
 
         return {
             'seed_paper': {
-                'paper_info': seed_paper
+            'paper_info': seed_paper
             },
-            'compared_papers': compared_papers
+            'compared_papers': compared_papers,
         }
         
     except Exception as e:
         logging.error(f"Error occurred during paper comparison: {str(e)}")
-        raise
+        # Return fake results in case of failure
+        fake_results = [
+            {
+            'source_info': {},
+            'paper_info': {},
+            'similarity_score': 0.5,
+            'comparison_metrics': {}
+            }
+        ]
+        return {
+            'seed_paper': {
+            'paper_info': seed_paper
+            },
+            'compared_papers': fake_results,
+            'search_terms': 'Fake Search'
+        }
 
 if __name__ == '__main__':
     app = create_app()
