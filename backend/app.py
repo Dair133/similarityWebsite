@@ -12,8 +12,7 @@ from pdfProcessing.pdfProcessor import PDFProcessor  # Note the lowercase 'p' in
 from pdfProcessing.semanticSearch import SemanticScholar
 
 # Import for model runners
-from modelFolder.modelRunners.standardModelRunner37k2 import ModelInference
-from modelFolder.modelRunners.lowSciBertModelRunner import LowSciBertModelInference  # Import the new model inference class
+from modelFolder.modelRunners.standardModelRunner32k3 import ModelInference
 from modelFolder.metricsCalculator import MetricsCalculator
 from pdfProcessing.SearchTermCache import SearchTermCache
 
@@ -58,7 +57,7 @@ Output format:
 TITLE: [exact paper title];
 CORE_METHODOLOGIES: [method1, method2, method3];
 CONCEPTUAL_ANGLES: [angle1, angle2, angle3s];
-RANDOM: [ 'mountain climbing','abstract painting','quantum dice' ]
+RANDOM: [ 'mountain climbing','abstract painting','cycling' ]
 Note: Keep it simple - basic technique plus scope, nothing more. For interesting slant, keep it simple main ideas of paper + something more abstract then core method
 ANY DEVIATION IN THIS FORMAT WILL LEAD TO ERRORS IN A DETERMINISTIC SYSTEM
 DO NOT ALTER THE OUTPUT FORMAT WITH NEW LINES DASHES OR ANY OTHER CHARACTER STCK STRICTLY TO OUTLINED FORMAT
@@ -363,7 +362,7 @@ def create_app():
 def compare_papers(seed_paper, papers_returned_through_search):
     try:
         inference = ModelInference(
-            model_path="modelFolder/standardModel-1-37k.pth",
+            model_path="modelFolder/standardModel-3-32k.pth",
         )
         metricCalculator = MetricsCalculator()
         
@@ -378,14 +377,11 @@ def compare_papers(seed_paper, papers_returned_through_search):
         compared_papers = []
         # Process the results
         for paper, metrics in zip(papers_returned_through_search, metrics_list):
-            # Prepare shared data dictionary
+            # Updated shared data to only include the three features used by new model
             shared_data = {
-                'reference_count': metrics['shared_reference_count'],
-                'reference_cosine': metrics['reference_cosine'],
-                'citation_count': metrics['shared_citation_count'],
-                'citation_cosine': metrics['citation_cosine'],
-                'author_count': metrics['shared_author_count'],
-                'abstract_cosine': metrics['abstract_cosine']
+                'shared_references': metrics['shared_reference_count'],
+                'shared_citations': metrics['shared_citation_count'],
+                'shared_authors': metrics['shared_author_count']
             }
             
             try:
@@ -408,7 +404,7 @@ def compare_papers(seed_paper, papers_returned_through_search):
 
         return {
             'seed_paper': {
-            'paper_info': seed_paper
+                'paper_info': seed_paper
             },
             'compared_papers': compared_papers,
         }
@@ -418,15 +414,15 @@ def compare_papers(seed_paper, papers_returned_through_search):
         # Return fake results in case of failure
         fake_results = [
             {
-            'source_info': {},
-            'paper_info': {},
-            'similarity_score': 0.5,
-            'comparison_metrics': {}
+                'source_info': {},
+                'paper_info': {},
+                'similarity_score': 0.5,
+                'comparison_metrics': {}
             }
         ]
         return {
             'seed_paper': {
-            'paper_info': seed_paper
+                'paper_info': seed_paper
             },
             'compared_papers': fake_results,
             'search_terms': 'Fake Search'

@@ -8,7 +8,6 @@ from werkzeug.utils import secure_filename
 # backend/app.py
 from pdfProcessing.pdfProcessor import PDFProcessor  # Note the lowercase 'p' in processor
 from pdfProcessing.semanticSearch import SemanticScholar
-from modelFolder.modelRunners.standardModelRunner37k2 import ModelInference
 import os
 # backend/app.py
 from flask import Flask
