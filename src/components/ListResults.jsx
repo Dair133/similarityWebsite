@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import FadeIn from 'react-fade-in';
 function ListResults({ results, toggleGraphView, setParentResults }) {
+  console.log(results)
   // Using { results } is the equivalent of doing
   // const results = props.results;
   // Here we are using Javascript object destructuring
@@ -69,6 +70,7 @@ function ListResults({ results, toggleGraphView, setParentResults }) {
 
   // A helper to render the Semantic Scholar info (or any info object)
   const renderSemanticScholarInfo = (info) => {
+    console.log(info)
     if (!info) return null;
     if (typeof info === 'string') {
       return <div>{info}</div>;
