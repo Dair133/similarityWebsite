@@ -57,7 +57,7 @@ Output format:
 TITLE: [exact paper title];
 CORE_METHODOLOGIES: [method1, method2, method3];
 CONCEPTUAL_ANGLES: [angle1, angle2, angle3s];
-RANDOM: [ 'mountain climbing','abstract painting','cycling' ]
+RANDOM: [ 'mountain climbing','archaeology','cycling' ]
 Note: Keep it simple - basic technique plus scope, nothing more. For interesting slant, keep it simple main ideas of paper + something more abstract then core method
 ANY DEVIATION IN THIS FORMAT WILL LEAD TO ERRORS IN A DETERMINISTIC SYSTEM
 DO NOT ALTER THE OUTPUT FORMAT WITH NEW LINES DASHES OR ANY OTHER CHARACTER STCK STRICTLY TO OUTLINED FORMAT
@@ -362,7 +362,7 @@ def create_app():
 def compare_papers(seed_paper, papers_returned_through_search):
     try:
         inference = ModelInference(
-            model_path="modelFolder/standardModel-3-32k.pth",
+            model_path="modelFolder/standardModel-3-32k-NoLeakage.pth",
         )
         metricCalculator = MetricsCalculator()
         
