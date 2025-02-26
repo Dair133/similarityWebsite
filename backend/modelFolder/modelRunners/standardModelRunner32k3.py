@@ -107,7 +107,7 @@ class ModelInference:
                 raw_similarity = F.cosine_similarity(embedding1, embedding2).cpu()
                 
                 # Debug info
-                print(f"Raw similarity: {raw_similarity.item():.4f}")
+                # print(f"Raw similarity: {raw_similarity.item():.4f}")
                 
                 return float(raw_similarity.item())
                 

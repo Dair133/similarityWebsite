@@ -299,3 +299,21 @@ class MetricsCalculator:
     
     # Return dictionary with 'compared_papers' key
      return {'compared_papers': weighted_papers}
+ 
+ 
+    def parse_attribute_list(self ,attributeList : str, delimiter : str) -> List[str]:
+        listResults = attributeList.split(delimiter)
+        print(listResults)
+        return listResults
+        
+ 
+    def compareAttribute(self, seedAttributeArray, secondAttributeArray): 
+        sharedCount = 0
+        for attribute in seedAttributeArray:
+            for secondAttribute in secondAttributeArray:
+                if(attribute == secondAttribute):
+                    sharedCount = sharedCount + 1
+        print(sharedCount)
+        return sharedCount
+                    
+        

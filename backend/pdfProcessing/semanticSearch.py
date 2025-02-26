@@ -260,11 +260,12 @@ class SemanticScholar:
             
     def search_papers_parallel(self, search_terms: List[Dict], api_key: str) -> List[Dict]:
      """
-     Parallel search that tracks which terms found which papers
-     Returns papers with information about which search terms found them
+    Parallel search that tracks which terms found which papers
+    Returns papers with information about which search terms found them
+    Ensures all returned papers have valid abstracts
      """
      def search_single_term(term_info: Dict) -> List[Dict]:
-        try:
+         try:
             if not term_info or 'term' not in term_info:
                 print(f"Invalid term_info: {term_info}")
                 return []
@@ -275,7 +276,7 @@ class SemanticScholar:
             
             params = {
                 "query": term_info['term'],
-                "limit": 10,
+                "limit": 20,  # Increased from 10 to have more candidates to filter
                 "fields": fields
             }
             
@@ -287,35 +288,92 @@ class SemanticScholar:
                 
             papers_data = result.get('data', [])
             
-            formatted_papers = []
+            # Filter for papers with valid abstracts
+            valid_papers = []
             for paper in papers_data:
                 if not paper:
                     continue
-                    
-                # Create a source info dictionary to track where this paper came from
-                source_info = {
-                    "search_term": term_info['term'],
-                    "search_type": term_info['type']
-                }
                 
-                paper_info = {
-                    "source_info": source_info,  # Add the source tracking information
-                    "paper_info": {
-                        "title": paper.get("title", "N/A"),
-                        "abstract": paper.get("abstract", "N/A"),
-                        "year": paper.get("year", "N/A"),
-                        "citation_count": paper.get("citationCount", 0),
-                        "reference_count": paper.get("referenceCount", 0),
-                        "authors": [author.get("name", "N/A") for author in paper.get("authors", [])],
-                        "citations": [citation.get("title", "N/A") for citation in paper.get("citations", [])],
-                        "references": [reference.get("title", "N/A") for reference in paper.get("references", [])]
+                # Check if this paper has a valid abstract
+                abstract = paper.get("abstract")
+                if abstract and isinstance(abstract, str) and len(abstract) >= 15:
+                    # Create a source info dictionary to track where this paper came from
+                    source_info = {
+                        "search_term": term_info['term'],
+                        "search_type": term_info['type']
                     }
-                }
-                formatted_papers.append(paper_info)
+                    
+                    paper_info = {
+                        "source_info": source_info,  # Add the source tracking information
+                        "paper_info": {
+                            "title": paper.get("title", "N/A"),
+                            "abstract": abstract,
+                            "year": paper.get("year", "N/A"),
+                            "citation_count": paper.get("citationCount", 0),
+                            "reference_count": paper.get("referenceCount", 0),
+                            "authors": [author.get("name", "N/A") for author in paper.get("authors", [])],
+                            "citations": [citation.get("title", "N/A") for citation in paper.get("citations", [])],
+                            "references": [reference.get("title", "N/A") for reference in paper.get("references", [])]
+                        }
+                    }
+                    valid_papers.append(paper_info)
+
+            if len(valid_papers) < 5 and papers_data:
+                for paper in papers_data:
+                    # Skip papers we've already processed
+                    if any(p['paper_info']['title'] == paper.get('title') for p in valid_papers):
+                        continue
+                        
+                    paper_id = paper.get('paperId')
+                    if not paper_id:
+                        continue
+                    
+                    # Get detailed paper info
+                    paper_url = f"https://api.semanticscholar.org/graph/v1/paper/{paper_id}"
+                    paper_params = {"fields": fields}
+                    
+                    paper_result = self._make_request(paper_url, headers, paper_params)
+                    if not paper_result:
+                        continue
+                    
+                    # Check for valid abstract
+                    detailed_abstract = paper_result.get("abstract")
+                    if detailed_abstract and isinstance(detailed_abstract, str) and len(detailed_abstract) >= 15:
+                        source_info = {
+                            "search_term": term_info['term'],
+                            "search_type": term_info['type']
+                        }
+                        
+                        paper_info = {
+                            "source_info": source_info,
+                            "paper_info": {
+                                "title": paper_result.get("title", "N/A"),
+                                "abstract": detailed_abstract,
+                                "year": paper_result.get("year", "N/A"),
+                                "citation_count": paper_result.get("citationCount", 0),
+                                "reference_count": paper_result.get("referenceCount", 0),
+                                "authors": [author.get("name", "N/A") for author in paper_result.get("authors", [])],
+                                "citations": [citation.get("title", "N/A") for citation in paper_result.get("citations", [])],
+                                "references": [reference.get("title", "N/A") for reference in paper_result.get("references", [])]
+                            }
+                        }
+                        valid_papers.append(paper_info)
+                        
+                        # Once we have enough valid papers, stop looking
+                        if len(valid_papers) >= 5:
+                            break
             
-            return formatted_papers
+
+            final_valid_papers = []
+            for paper in valid_papers:
+                abstract = paper['paper_info'].get('abstract')
+                if abstract and isinstance(abstract, str) and len(abstract) >= 15:
+                    final_valid_papers.append(paper)
+                    
+            print(f"Found {len(final_valid_papers)} valid papers for term: {term_info['term']}")
+            return final_valid_papers
             
-        except Exception as e:
+         except Exception as e:
             print(f"Error processing term {term_info.get('term', 'unknown')}: {str(e)}")
             return []
 
@@ -346,8 +404,17 @@ class SemanticScholar:
         # Convert back to list
         final_papers = list(papers_by_title.values())
         
-        print(f"Total unique papers found: {len(final_papers)}")
-        return final_papers
+        # Final verification that all papers have valid abstracts
+        valid_final_papers = []
+        for paper in final_papers:
+            abstract = paper['paper_info'].get('abstract')
+            if abstract and isinstance(abstract, str) and len(abstract) >= 15:
+                valid_final_papers.append(paper)
+            else:
+                print(f"Removing paper with invalid abstract: {paper['paper_info'].get('title')}")
+        
+        print(f"Total unique papers with valid abstracts: {len(valid_final_papers)}/{len(final_papers)}")
+        return valid_final_papers
         
      except Exception as e:
         print(f"Error in search_papers_parallel: {str(e)}")

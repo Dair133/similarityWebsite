@@ -143,6 +143,15 @@ function ListResults({ results, toggleGraphView, setParentResults }) {
                 <strong>Source Info:</strong>{' '}
                 {paper.source_info[0].search_term}
                 {paper.source_info[0].search_type}
+                <br></br>
+                <strong>Shared Reference Count:</strong>
+                {' '}{paper.comparison_metrics.shared_reference_count}
+                <br></br>
+                <strong>Shared Citation Count:</strong>
+                {' '}{paper.comparison_metrics.shared_citation_count}
+                <br></br>
+                <strong>Shared Author Count:</strong>
+                {' '}{paper.comparison_metrics.shared_author_count}
                 <p>
                   <strong>Abstract:</strong> {paper.paper_info.abstract}
                 </p>

@@ -261,6 +261,22 @@ def process_pdf_route():
                 seed_abstract = semanticScholarPaperInfo['abstract']
                 seed_embedding = metricsCalculator.get_scibert_embedding(seed_abstract, tokenizer, model)
                 semanticScholarPaperInfo['scibert'] = seed_embedding.tolist()
+                
+                # Here we will calculate shared references, citations and cosine
+                seedReferenceList = semanticScholarPaperInfo['references']
+                parsedSeedReferenceList = metricsCalculator.parse_attribute_list(seedReferenceList,';')
+                
+                seedCitationList = semanticScholarPaperInfo['citations']
+                parsedSeedCitationList = metricsCalculator.parse_attribute_list(seedCitationList,';')
+                
+                seedAuthorList = semanticScholarPaperInfo['authors']
+                parsedSeedAuthorLust = metricsCalculator.parse_attribute_list(seedAuthorList, ',')
+                print('Reference list is')
+                print(seedReferenceList)
+                
+                print('Parsed Reference list is')
+                print(parsedSeedReferenceList)
+                
         
                 seedPaper = {
                     'search_type': 'seed_paper',
@@ -270,9 +286,38 @@ def process_pdf_route():
                 startTime = time.time()
                 print("Comparing papers...")
                 similarityResults  = compare_papers(seedPaper, papersReturnedThroughSearch)
+
+                for paper in similarityResults['compared_papers']:
+                    referenceList = paper['paper_info'].get('references', [])
+                    sharedReferenceCount = metricsCalculator.compareAttribute(parsedSeedReferenceList, referenceList)
+                    paper['comparison_metrics']['shared_reference_count'] = sharedReferenceCount
+                        
+                    citationList = paper['paper_info'].get('citations', [])
+                    sharedCitationCount = metricsCalculator.compareAttribute(parsedSeedCitationList,citationList)
+                    paper['comparison_metrics']['shared_citation_count'] = sharedCitationCount
+                    
+                    authorList = paper['paper_info'].get('authors', [])
+                    sharedAuthorCount = metricsCalculator.compareAttribute(parsedSeedAuthorLust,authorList)
+                    paper['comparison_metrics']['shared_author_count'] = sharedAuthorCount
+                    
+                    if sharedReferenceCount > 0:
+                        print('Found authors or citaitons or references greater than 0',sharedAuthorCount,sharedCitationCount,sharedReferenceCount)
+                    
+     
+                
+
                 print("Finished comparing papers")
                 endTime = time.time()
                 print(f"Time taken for comparison: {endTime - startTime} seconds")
+
+                # Print list of references for the first entry in similarity results
+                if similarityResults['compared_papers']:
+                    first_paper_references = similarityResults['compared_papers'][0]['paper_info'].get('references', [])
+                    print("References for the first entry in similarity results:")
+                    print(first_paper_references)
+                
+                
+                
                 
                 # From returned papers and their simlarity score, get only relatively similar papers
                 startTime = time.time()

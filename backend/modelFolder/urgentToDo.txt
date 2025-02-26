@@ -1,6 +1,6 @@
-re query if paper has no abstract
+re query if paper has no abstract - DONE
 test wider range of papers
-make sure that shared authors, citaitons and references are  being calculated and correctly passed to model , may make a large difference in results
+make sure that shared authors, citaitons and references are  being calculated and correctly passed to model , may make a large difference in results - DONE
 immediatly implement testing scripts , both determinsitic ones and google scholar testing script.
 possibly re run the mdeol a few times to get papers with least number of random results????
 implement some form of basic cache to ensure that haiku returns the same thing every time AND at same time consider moving to gemini flash or some other superior cheap model
