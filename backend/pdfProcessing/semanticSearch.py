@@ -109,7 +109,12 @@ class SemanticScholar:
             if not paper_id:
                 return None
 
+
             paper_data = self.get_paper_details(paper_id, api_key)
+            # If a paper does not have a valid abstract then return none
+            # Abstracts are too important to the overall calcualtion of similarity to do without them
+            if paper_data['abstract'] == None:
+                return None
             if not paper_data:
                 return None
 

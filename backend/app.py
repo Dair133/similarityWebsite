@@ -77,42 +77,63 @@ This output is programmatically parsed and any formatting change will break the 
 
 
 
-claudeInstruction_extractAllInfo = '''Given a scientific paper, perform a DETERMINISTIC analysis by following these strict steps in order. Your output must be EXACTLY consistent across multiple runs.
+claudeInstruction_extractAllInfo = '''
+# Scientific Paper Analysis System
 
-Output must be in this exact format with two sections separated by a blank line:
+You are an expert scientific literature analyzer specializing in extracting core information from academic papers. Your analysis is critical for an AI research pipeline that uses your extracted data to find similar papers through SciBERT embeddings when Semantic Scholar lacks complete information on a document.
 
-METADATA:
-TITLE: [paper title];
-AUTHORS: [comma-separated list of authors];
+## Core Extraction Task
+Extract the paper's core information and generate a technical abstract specifically optimized for SciBERT embedding-based similarity matching.
+
+## Output Format (CRITICAL - MUST BE FOLLOWED EXACTLY)
+The output must follow this precise format with two main sections:
+
+SEMANTIC_SCHOLAR_INFO:
+TITLE: [exact paper title];
+AUTHORS: [comma-separated list of all authors, formatted as "Lastname, Firstname" or "Lastname, F."];
 YEAR: [publication year];
-ABSTRACT: [paper abstract];
-CITATION_COUNT: [number of citations if available, else 0];
-REFERENCE_COUNT: [number of references if available, else 0];
+ABSTRACT: [SciBERT-optimized technical abstract that precisely captures the paper's technical contributions, methodology, and findings];
+CITATIONS: [semicolon-separated list of papers that cite this work];
+REFERENCES: [semicolon-separated list of papers referenced by this work];
 
-ANALYSIS:
-CORE_CONCEPTS: [only concepts from abstract, comma-separated];
-CORE_METHODOLOGIES: [only described methods, comma-separated];
-RELATED_METHODOLOGIES: [standard field methods, comma-separated];
-ABSTRACT_CONCEPTS: [max 3 principles, comma-separated];
-CROSS_DOMAIN: [max 3 fields, comma-separated];
-THEORETICAL_FOUNDATIONS: [max 3 theories, comma-separated];
-ANALOGOUS_PROBLEMS: [max 3 problems, comma-separated];
 
-Rules for deterministic output:
-- Use ONLY information explicitly stated in the paper
-- Limit each analysis section to 3 items maximum
-- Always order items alphabetically within each section
-- Use consistent, standardized terminology
-- No explanatory text or variations
-- No optional or variable content
-- Strict semicolon and comma usage
-- All sections must be present even if empty (use empty string)
-Any deviation from this format or inconsistency across runs is an error. ANY DEVIATION AT ALL IN THE DETERMINISTIC ANSWERS IS AN ERROR AND WILL RESULT IN A NON FUNCITONAL SYSTEM.
+## Extraction Guidelines
+For SEMANTIC_SCHOLAR_INFO section:
+- Extract the EXACT paper title
+- List ALL authors in order of appearance
+- GENERATE a SciBERT-optimized technical abstract that:
+  * Uses domain-specific scientific terminology consistent with the paper's field
+  * Emphasizes technical concepts, methodologies, algorithms, and contributions
+  * Includes precise technical terms that would appear in similar papers
+  * Contains specific technical metrics, evaluation methods, datasets, and quantitative results
+  * Maintains the paper's original technical vocabulary and naming conventions
+  * References established techniques, frameworks, or algorithms by their standard names
+  * Has sufficient technical density for accurate embedding representation
+  * Uses consistent technical terminology throughout for better embedding coherence
+  * Is approximately 200-300 words in length and technical in nature
+- If references or citations are listed in the paper, include their full titles
+- Format each citation and reference as a complete paper title
+
+
+
+## SciBERT Embedding Optimization Guidelines
+- SciBERT creates embeddings based on scientific terminology and structure
+- Effective abstract generation should match the scientific terminology of the paper's domain
+- Use standardized scientific language patterns that SciBERT would recognize from its training corpus
+- Structure the abstract with clear technical sections covering problem statement, methodology, and results
+- Include key technical phrases that would be shared across semantically similar papers
+- Avoid general or vague descriptions in favor of precise technical characterizations
+- Prioritize including technical content that distinguishes this paper from others in the field
+- Focus more on technical approach rather than general implications or background
+- Match the abstract's language style to published papers in the same field/venue
+
+## Format Warning
+Any deviation from the exact output format will cause the entire ML pipeline to fail. This output is programmatically parsed with strict expectations for section headers, brackets, delimiters, and structure.
 '''
 
 current_dir = Path(__file__).parent
 similarity_root = current_dir.parent
-env_path = similarity_root / '.env'
+env_path = similarity_root / '.env.txt'
 
 upload_bp = Blueprint('upload', __name__)
 load_dotenv(env_path)  # Load environment variables from .en
@@ -147,107 +168,89 @@ def process_pdf_route():
         filename = secure_filename(file.filename)
         filepath = os.path.join(UPLOAD_FOLDER, filename)
         file.save(filepath)
-        print("HTTP_PROXY:", os.environ.get("HTTP_PROXY"))
-        print("HTTPS_PROXY:", os.environ.get("HTTPS_PROXY"))
         # Initialize our processor
         processor = PDFProcessor()
         semanticScholar = SemanticScholar()
         cache = SearchTermCache()
         metricsCalculator = MetricsCalculator()
-        # processor.ask_gemini(api_key_gemini)
-        #processor.ask_deepseek(api_key_deepseek)
         # Will probably have to change to more generic 'extractPdfInfo', one function extract all necessary info for pdf.
-        if functionName == 'extractSeedPaperInfo':
-            entireFuncionTime = time.time()
-            try:
+        entireFuncionTime = time.time()
+        try:
                 entirePDFText = processor._extract_text(filepath)
                 if len(entirePDFText) > 10024:
                     entirePDFText = entirePDFText[:8000]
                 
                 # Extract title and initial analysis
-                pdfTitle_claude = processor.ask_claude(pdfText=entirePDFText, 
+                pfdInfo = processor.ask_claude(pdfText=entirePDFText, 
                                                      systemInstructions=claudeInstruction_extractTitleMethodInfo,
                                                      api_key=api_key_claude)
-                pdfInfo = pdfTitle_claude.content[0].text
+                pdfInfo = pfdInfo.content[0].text
                 print(f"Extracted info: {pdfInfo}")
-                pdfInfoStruct = processor.parse_paper_info(pdfInfo)
+                paperSearchTermsAndTitle = processor.parse_paper_info(pdfInfo)
                 
                 # Try Semantic Scholar first
                 startTime = time.time()
-                print('The title is',pdfInfoStruct['title'])
-                semanticScholarPaperInfo = semanticScholar.return_info_by_title(pdfInfoStruct['title'], 
+                print('The title is',paperSearchTermsAndTitle['title'])
+                # General paper info holds the papers general infomration such as title, refs, cites , authors, etc
+                # If this cannot be gotten by semantic scholar below then its gotten by Haiku
+                generalPaperInfo = semanticScholar.return_info_by_title(paperSearchTermsAndTitle['title'], 
                                                                               api_key_semantic)
                 endTime = time.time()
                 print(f"Time taken for semantic scholar search: {endTime - startTime} seconds")
                 
                 
-                # Get embedding for seed paper
-                seed_abstract = semanticScholarPaperInfo['abstract']
-                seed_embedding = metricsCalculator.get_scibert_embedding(seed_abstract, tokenizer, model)
-                semanticScholarPaperInfo['scibert'] = seed_embedding.tolist()
-                
-                # Here we will calculate shared references, citations and cosine
-                seedReferenceList = semanticScholarPaperInfo['references']
-                parsedSeedReferenceList = metricsCalculator.parse_attribute_list(seedReferenceList,';')
-                
-                seedCitationList = semanticScholarPaperInfo['citations']
-                parsedSeedCitationList = metricsCalculator.parse_attribute_list(seedCitationList,';')
-                
-                seedAuthorList = semanticScholarPaperInfo['authors']
-                print('SEed author list below')
-                print(seedAuthorList)
-                parsedSeedAuthorLust = metricsCalculator.parse_attribute_list(seedAuthorList, ',')
-                
-                
-                if semanticScholarPaperInfo:
+                if generalPaperInfo:
                     print("Using Semantic Scholar data")
                     # Use Semantic Scholar data if available
                     result = {
-                        'title': pdfInfoStruct['title'],
+                        'title': paperSearchTermsAndTitle['title'],
                         'paper_info': {  
-                            'authors': semanticScholarPaperInfo['authors'],
-                            'abstract': semanticScholarPaperInfo['abstract'],
-                            'year': semanticScholarPaperInfo['year'],
-                            'citation_count': semanticScholarPaperInfo['citation_count'],
-                            'reference_count': semanticScholarPaperInfo['reference_count'],
-                            'citations': semanticScholarPaperInfo['citations'],
-                            'references': semanticScholarPaperInfo['references']
+                            'authors': generalPaperInfo['authors'],
+                            'abstract': generalPaperInfo['abstract'],
+                            'year': generalPaperInfo['year'],
+                            'citation_count': generalPaperInfo['citation_count'],
+                            'reference_count': generalPaperInfo['reference_count'],
+                            'citations': generalPaperInfo['citations'],
+                            'references': generalPaperInfo['references']
                         },
                         'abstract_info': {
-                            'core_concepts': pdfInfoStruct['core_methodologies'],
-                            'conceptual_angles':pdfInfoStruct['conceptual_angles'],
-                            'random':pdfInfoStruct['random']
+                            'core_concepts': paperSearchTermsAndTitle['core_methodologies'],
+                            'conceptual_angles':paperSearchTermsAndTitle['conceptual_angles'],
+                            #'random':paperSearchTermsAndTitle['random']
                         }
                     }
                 else:
                     print("No semantic scholar data")
                     # If no Semantic Scholar data, use Haiku analysis
                     entirePDFText = processor._extract_text(filepath)  # Get full text again if needed
-                    seedPaperInfo = processor.ask_claude(text=entirePDFText, 
-                                                       instruction=claudeInstruction_extractAllInfo, 
+                    generalPaperInfo = processor.ask_claude(pdfText=entirePDFText, 
+                                                       systemInstructions=claudeInstruction_extractAllInfo, 
                                                        api_key=api_key_claude)
-                    haikuResults = processor.parse_haiku_output(seedPaperInfo.content[0].text)
+                    print(generalPaperInfo.content[0].text)
+                    generalPaperInfo = processor.parse_haiku_output(generalPaperInfo.content[0].text)
                     
                     result = {
-                        'title': pdfInfoStruct['title'],
-                        'paper_info': {  # Use Haiku's extracted info
-                            'authors': haikuResults['semantic_scholar_info']['authors'],
-                            'abstract': haikuResults['semantic_scholar_info']['abstract'],
-                            'year': haikuResults['semantic_scholar_info']['year'],
-                            'citation_count': haikuResults['semantic_scholar_info']['citation_count'],
-                            'reference_count': haikuResults['semantic_scholar_info']['reference_count'],
-                            'citations': [],  # Empty list as Haiku can't get actual citations
-                            'references': []  # Empty list as Haiku can't get actual references
-                        },
-                        'abstract_info': {
-                            'core_concepts': pdfInfoStruct['core_concepts'],
-                            'core_methodologies': pdfInfoStruct['core_methodologies'],
-                            'related_methodologies': pdfInfoStruct['related_methodologies'],
-                            'key_findings': pdfInfoStruct['key_findings'],
-                            'subject_tags': pdfInfoStruct['subject_tags'],
-                        }
-                    }
+    'title': paperSearchTermsAndTitle['title'],
+    'paper_info': generalPaperInfo,  # Now directly use the parsed results
+    'abstract_info': {
+        'core_methodologies': paperSearchTermsAndTitle['core_methodologies'],
+        'related_methodologies': paperSearchTermsAndTitle['conceptual_angles'],
+    }
+}
+                    
+                seed_abstract = generalPaperInfo['abstract']
+                seed_embedding = metricsCalculator.get_scibert_embedding(seed_abstract, tokenizer, model)
+                generalPaperInfo['scibert'] = seed_embedding.tolist()
                 
+                # Here we will calculate shared references, citations and cosine
+                seedReferenceList = generalPaperInfo['references']
+                parsedSeedReferenceList = metricsCalculator.parse_attribute_list(seedReferenceList,';')
+                
+                seedCitationList = generalPaperInfo['citations']
+                parsedSeedCitationList = metricsCalculator.parse_attribute_list(seedCitationList,';')
+                
+                seedAuthorList = generalPaperInfo['authors']
+                parsedSeedAuthorLust = metricsCalculator.parse_attribute_list(seedAuthorList, ',')
                 papersReturnedThroughSearch = []
                 
                 # Now based on the abstract info extracted from the paper we should search semantic scholar for similar papers
@@ -259,24 +262,24 @@ def process_pdf_route():
                 cache = SearchTermCache()
                 search_terms = []
                  # Add core methodologies with high weight since they're specific
-                if 'core_methodologies' in pdfInfoStruct and pdfInfoStruct['core_methodologies']:
-                 for methodology in pdfInfoStruct['core_methodologies']:
+                if 'core_methodologies' in paperSearchTermsAndTitle and paperSearchTermsAndTitle['core_methodologies']:
+                 for methodology in paperSearchTermsAndTitle['core_methodologies']:
                    search_terms.append({
                     'term': methodology,
                     'type': 'core_methodology',
                     'weight': 1.0 # High weight for specific methodologies
                 })
                    
-                if 'conceptual_angles' in pdfInfoStruct and pdfInfoStruct['conceptual_angles']:
-                 for conceptualAngle in pdfInfoStruct['conceptual_angles']:
+                if 'conceptual_angles' in paperSearchTermsAndTitle and paperSearchTermsAndTitle['conceptual_angles']:
+                 for conceptualAngle in paperSearchTermsAndTitle['conceptual_angles']:
                    search_terms.append({
                     'term': conceptualAngle,
                     'type': 'conceptual_angles',
                     'weight': 1.0 # High weight for specific methodologies
                 })
                    
-                if 'random' in pdfInfoStruct and pdfInfoStruct['random']:
-                 for randomSubject in pdfInfoStruct['random']:
+                if 'random' in paperSearchTermsAndTitle and paperSearchTermsAndTitle['random']:
+                 for randomSubject in paperSearchTermsAndTitle['random']:
                    search_terms.append({
                     'term': randomSubject,
                     'type': 'random',
@@ -297,15 +300,11 @@ def process_pdf_route():
                 papersReturnedThroughSearch = semanticScholar.search_papers_parallel(search_terms, api_key_semantic)
                 endTime = time.time()
                 print(f"Time taken for searching using core techniques: {endTime - startTime} seconds")          
-
-
-
-
                 
         
                 seedPaper = {
                     'search_type': 'seed_paper',
-                    'paper_info': semanticScholarPaperInfo
+                    'paper_info': generalPaperInfo
                 }
                 # Compare seed paper against all papers returned through search
                 startTime = time.time()
@@ -361,7 +360,7 @@ def process_pdf_route():
                         
                 return jsonify(result), 200
                    
-            except Exception as e:
+        except Exception as e:
                 error_message = f"Error processing request: {str(e)}"
                 print(f"Detailed error: {error_message}")  # Enhanced error logging
                 
@@ -388,6 +387,7 @@ def process_pdf_route():
             'error': str(e),
             'details': traceback.format_exc()
         }), 500
+
 
 # Add the project root directory to Python path for proper imports
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -487,6 +487,7 @@ def compare_papers(seed_paper, papers_returned_through_search):
             'compared_papers': fake_results,
             'search_terms': 'Fake Search'
         }
+
 
 if __name__ == '__main__':
     app = create_app()

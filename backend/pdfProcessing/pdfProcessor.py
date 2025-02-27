@@ -265,57 +265,154 @@ class PDFProcessor:
         self.logger.error(f"Error parsing paper info: {str(e)}")
         return None
 
-    def parse_haiku_output(output: str) -> Dict[str, Union[str, Dict]]:
+    def parse_haiku_output(self, output) -> Dict[str, Any]:
      """
-    Parse the output from Claude/Haiku into the same structure as Semantic Scholar output.
+    Parse the output from Claude/Haiku into a structure compatible with Semantic Scholar results.
     
     Args:
-        output (str): Raw output from Claude/Haiku
+        output: Raw string response from Claude/Haiku
         
     Returns:
         dict: Structured paper information matching Semantic Scholar format
     """
-    # Split into metadata and analysis sections
-     sections = output.strip().split('\n\n')
-     metadata_section = sections[0]
-     analysis_section = sections[1]
-     
-    # Parse metadata section
-     metadata = {}
-     for line in metadata_section.split('\n')[1:]:  # Skip the "METADATA:" header
-        if ':' in line:
-            key, value = line.split(':', 1)
-            key = key.lower().strip()
-            value = value.replace(';', '').strip()
-            metadata[key] = value
-    
-     # Parse analysis section
-     analysis = {}
-     for line in analysis_section.split('\n')[1:]:  # Skip the "ANALYSIS:" header
-        if ':' in line:
-            key, value = line.split(':', 1)
-            value = value.replace(';', '').strip()
-            if value:  # If not empty
-                analysis[key] = [item.strip() for item in value.split(',')]
+     try:
+        # Ensure output is a string
+        if not isinstance(output, str):
+            # Handle if it's a response object with content
+            if hasattr(output, 'content') and output.content:
+                if isinstance(output.content, list) and output.content and hasattr(output.content[0], 'text'):
+                    output = output.content[0].text
+                else:
+                    output = str(output.content)
             else:
-                analysis[key] = []
-    
-     # Format in the same structure as semantic scholar output
-     result = {
-        'title': metadata.get('title', ''),
-        'semantic_scholar_info': {
-            'authors': [author.strip() for author in metadata.get('authors', '').split(',') if author.strip()],
-            'abstract': metadata.get('abstract', ''),
-            'year': int(metadata.get('year', 0)),
-            'citation_count': int(metadata.get('citation_count', 0)),
-            'reference_count': int(metadata.get('reference_count', 0)),
-            'citations': [],  # Can't get actual citations without Semantic Scholar
-            'references': []  # Can't get actual references without Semantic Scholar
-        },
-        'analysis': analysis
-    }
-    
-     return result
+                # Try to convert to string
+                output = str(output)
+                
+        # Initialize result structure matching Semantic Scholar's return format
+        result = {
+            'title': '',
+            'authors': '',
+            'abstract': '',
+            'year': 0,
+            'citation_count': 0,
+            'reference_count': 0,
+            'citations': '',
+            'references': ''
+        }
+        
+        # Check if the output contains the expected section header
+        if 'SEMANTIC_SCHOLAR_INFO:' not in output:
+            self.logger.error("Missing 'SEMANTIC_SCHOLAR_INFO:' section in Haiku output")
+            return result
+            
+        # Extract the SEMANTIC_SCHOLAR_INFO section
+        sections = output.split('SEMANTIC_SCHOLAR_INFO:')
+        if len(sections) < 2:
+            self.logger.error("Could not split on SEMANTIC_SCHOLAR_INFO section")
+            return result
+            
+        scholar_section = sections[1].strip()
+        
+        # Extract individual fields
+        # Use a more robust approach - look for field markers
+        fields = {
+            'TITLE:': 'title',
+            'AUTHORS:': 'authors',
+            'YEAR:': 'year',
+            'ABSTRACT:': 'abstract',
+            'CITATIONS:': 'citations',
+            'REFERENCES:': 'references'
+        }
+        
+        # Find the positions of each field in the text
+        field_positions = {}
+        for field in fields.keys():
+            pos = scholar_section.find(field)
+            if pos >= 0:
+                field_positions[field] = pos
+        
+        # Sort fields by their position in the text
+        sorted_fields = sorted(field_positions.items(), key=lambda x: x[1])
+        
+        # Extract each field's content
+        for i, (field, pos) in enumerate(sorted_fields):
+            # Find the end of this field (start of next field or end of text)
+            if i < len(sorted_fields) - 1:
+                end_pos = sorted_fields[i + 1][1]
+            else:
+                end_pos = len(scholar_section)
+                
+            # Extract the field content
+            content = scholar_section[pos + len(field):end_pos].strip()
+            
+            # Remove trailing semicolons and clean up
+            if content.endswith(';'):
+                content = content[:-1].strip()
+                
+            field_name = fields[field]
+            
+            # Special handling for different field types
+            if field_name == 'year':
+                try:
+                    result[field_name] = int(content) if content else 0
+                except ValueError:
+                    result[field_name] = 0
+            elif field_name in ['authors', 'citations', 'references']:
+                # These fields might be lists
+                if field_name == 'authors':
+                    items = [item.strip() for item in content.split(',') if item.strip()]
+                    result[field_name] = ', '.join(items)  # Join with comma for authors
+                else:
+                    items = [item.strip() for item in content.split(';') if item.strip()]
+                    result[field_name] = '; '.join(items)  # Join with semicolon for citations/references
+                
+                # Set counts
+                if field_name == 'citations':
+                    result['citation_count'] = len(items)
+                elif field_name == 'references':
+                    result['reference_count'] = len(items)
+            else:
+                result[field_name] = content
+                
+        self.logger.info(f"Successfully parsed Haiku output: title={result['title']}, " +
+                         f"abstract length={len(result['abstract'])} chars")
+        return result
+        
+     except Exception as e:
+        self.logger.error(f"Error parsing Haiku output: {str(e)}")
+        # Return empty structure on error, matching Semantic Scholar format
+        return {
+            'title': '',
+            'authors': '',
+            'abstract': '',
+            'year': 0,
+            'citation_count': 0,
+            'reference_count': 0,
+            'citations': '',
+            'references': ''
+        }
+        
 
+
+    def _clean_value(self, value: str) -> str:
+     """
+    Helper method to clean values by removing brackets and semicolons.
+    
+    Args:
+        value (str): The raw value from the Haiku output
+        
+    Returns:
+        str: The cleaned value
+    """
+     # Remove square brackets
+     if value.startswith('[') and ']' in value:
+        value = value[1:value.rfind(']')]
+    
+    # Remove trailing semicolon
+     if value.endswith(';'):
+        value = value[:-1]
+        
+     return value.strip()
+  
     
     

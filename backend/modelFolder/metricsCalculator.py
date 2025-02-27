@@ -313,6 +313,7 @@ class MetricsCalculator:
             for secondAttribute in secondAttributeArray:
                 if(attribute == secondAttribute):
                     sharedCount = sharedCount + 1
+        print(sharedCount)
         return sharedCount
                     
         
