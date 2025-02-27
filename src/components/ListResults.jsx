@@ -127,6 +127,7 @@ function ListResults({ results, toggleGraphView, setParentResults }) {
       {displayResults && (
         <div style={styles.results}>
           <h3>Semantic Scholar Info:</h3>
+          <strong>Title: </strong>{displayResults.seed_paper.paper_info.title}
           {renderSemanticScholarInfo(displayResults.seed_paper.paper_info.abstract)}
           <h3>Semantic Scholar Abstract Info:</h3>
           {renderSemanticScholarInfo(displayResults.abstract_info)}
@@ -135,14 +136,22 @@ function ListResults({ results, toggleGraphView, setParentResults }) {
            <FadeIn>
             {displayResults.similarity_results.map((paper, index) => (
               <li key={index}>
-                <strong>Title:</strong> {paper.title} <br />
-                <strong>Paper ID:</strong> {paper.id} -{' '}
+                <strong>Title:</strong> {paper.paper_info.title} <br />
                 <strong>Similarity Score:</strong>{' '}
                 {paper.similarity_score}
                 <br />
                 <strong>Source Info:</strong>{' '}
                 {paper.source_info[0].search_term}
                 {paper.source_info[0].search_type}
+                <br />
+                <strong>Shared Reference Count:</strong>
+                {' '}{paper.comparison_metrics.shared_reference_count}
+                <br />
+                <strong>Shared Citation Count:</strong>
+                {' '}{paper.comparison_metrics.shared_citation_count}
+                <br />
+                <strong>Shared Author Count:</strong>
+                {' '}{paper.comparison_metrics.shared_author_count}
                 <p>
                   <strong>Abstract:</strong> {paper.paper_info.abstract}
                 </p>

@@ -1,0 +1,32 @@
+re query if paper has no abstract - DONE
+test wider range of papers
+make sure that shared authors, citaitons and references are  being calculated and correctly passed to model , may make a large difference in results - DONE
+immediatly implement testing scripts , both determinsitic ones and google scholar testing script.
+possibly re run the mdeol a few times to get papers with least number of random results????
+implement some form of basic cache to ensure that haiku returns the same thing every time AND at same time consider moving to gemini flash or some other superior cheap model
+remove seemingly ranom sving of papers as jons and other file tpoyes
+its possible that seed paper entered has semantic scholar data but DOES NOT have an abstract, this sohuld be treated as having NO semantic scholar data
+Haiku should be given first 3 pages an potentially last 3 pages to make sure that if paper does not have semtantic scholar that it can get the references citaitons etc,
+
+
+
+
+
+
+Traceback (most recent call last):
+  File "C:\Users\alasd\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 1038, in _bootstrap_inner
+    self.run()
+  File "C:\Users\alasd\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 975, in run
+    self._target(*self._args, **self._kwargs)
+  File "C:\Users\alasd\AppData\Local\Programs\Python\Python311\Lib\site-packages\werkzeug\serving.py", line 819, in serve_forever
+    super().serve_forever(poll_interval=poll_interval)
+  File "C:\Users\alasd\AppData\Local\Programs\Python\Python311\Lib\socketserver.py", line 233, in serve_forever
+    ready = selector.select(poll_interval)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\alasd\AppData\Local\Programs\Python\Python311\Lib\selectors.py", line 323, in select
+    r, w, _ = self._select(self._readers, self._writers, [], timeout)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\alasd\AppData\Local\Programs\Python\Python311\Lib\selectors.py", line 314, in _select
+    r, w, x = select.select(r, w, w, timeout)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+OSError: [WinError 10038] An operation was attempted on something that is not a socket
