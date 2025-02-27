@@ -4,7 +4,7 @@ make sure that shared authors, citaitons and references are  being calculated an
 immediatly implement testing scripts , both determinsitic ones and google scholar testing script.
 possibly re run the mdeol a few times to get papers with least number of random results????
 implement some form of basic cache to ensure that haiku returns the same thing every time AND at same time consider moving to gemini flash or some other superior cheap model
-
+remove seemingly ranom sving of papers as jons and other file tpoyes
 
 
 
