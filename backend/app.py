@@ -15,7 +15,7 @@ from pdfProcessing.semanticSearch import SemanticScholar
 from modelFolder.modelRunners.standardModelRunner32k3 import ModelInference
 from modelFolder.metricsCalculator import MetricsCalculator
 from pdfProcessing.SearchTermCache import SearchTermCache
-
+from pdfProcessing.localDatabaseManager import LocalDatabaseManager
 import os
 # backend/app.py
 from flask import Flask
@@ -172,6 +172,7 @@ def process_pdf_route():
         semanticScholar = SemanticScholar()
         cache = SearchTermCache()
         metricsCalculator = MetricsCalculator()
+        localDatabaseManager = LocalDatabaseManager()
         # Will probably have to change to more generic 'extractPdfInfo', one function extract all necessary info for pdf.
         entireFuncionTime = time.time()
         try:
@@ -179,8 +180,6 @@ def process_pdf_route():
                 if len(entirePDFText) > 10024:
                     entirePDFText = entirePDFText[:8000]
                 
-                # If it finds cache return data, if not return false
-                print('About to check cache')
                 cacheResult = cache.cacheCheck(pdfName)
                 if cacheResult:
                     print('Document found in cache, no need to query Haiku!')
@@ -309,17 +308,29 @@ def process_pdf_route():
                 print('search terms are')
                 print(search_terms)
                 papersReturnedThroughSearch = semanticScholar.search_papers_parallel(search_terms, api_key_semantic)
+                
+                openAlexPapers = semanticScholar.search_papers_parallel_ALEX(search_terms,desired_papers=1)
+                #print('OPen alex papers are')
+                #print(openAlexPapers)
                 endTime = time.time()
                 print(f"Time taken for searching using core techniques: {endTime - startTime} seconds")          
-                
-                # WORK HERE CLAUDE
-                # Now we should append poison pill papers from the excel
+
         
                 seedPaper = {
                     'search_type': 'seed_paper',
                     'paper_info': generalPaperInfo
                 }
-                # Compare seed paper against all papers returned through search
+                                
+                # WORK HERE CLAUDE
+                # Now we should append poison pill papers from the excel
+                poisonPillPapers = localDatabaseManager.load_poison_pill_papers("poison_pill_papers_With_SciBert.xlsx")
+                # Append poison pill papers to the search results
+                if poisonPillPapers and len(poisonPillPapers) > 0:
+                    print(f"Adding {len(poisonPillPapers)} poison pill papers to comparison set")
+                    papersReturnedThroughSearch.extend(poisonPillPapers)
+                else:
+                    print("No poison pill papers found or loaded")
+                
                 startTime = time.time()
                 print("Calculating shared attributes...")
 
@@ -343,6 +354,11 @@ def process_pdf_route():
                     paper['comparison_metrics']['shared_citation_count'] = sharedCitationCount
                     paper['comparison_metrics']['shared_author_count'] = sharedAuthorCount
 
+
+
+
+
+
                 print("Comparing papers...")
                 similarityResults = compare_papers(seedPaper, papersReturnedThroughSearch)
                 endTime = time.time()
@@ -365,6 +381,7 @@ def process_pdf_route():
                 os.remove(filepath)
                 result['seed_paper'] = seedPaper
                 result['similarity_results'] = relativelySimilarPapers
+                result['openAlex'] = openAlexPapers
                 result['test'] = similarityResults
                 finishingTime = time.time()
                 print(f"Entire function took: {finishingTime - entireFuncionTime} seconds")
@@ -459,7 +476,6 @@ def compare_papers(seed_paper, papers_returned_through_search):
                 'shared_citations': paper['comparison_metrics'].get('shared_citation_count', 0),
                 'shared_authors': paper['comparison_metrics'].get('shared_author_count', 0)
             }
-            print("Using shared count",shared_data['shared_authors'])
             try:
                 similarity = inference.predict_similarity(
                     paper1_SciBert=seed_paper['paper_info'].get('scibert', []),

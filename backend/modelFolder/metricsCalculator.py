@@ -327,7 +327,7 @@ class MetricsCalculator:
             if seed_attr == second_attr or seed_attr in second_attr or second_attr in seed_attr:
                 sharedCount += 1
                 # Debug which authors matched
-                print(f"Match found: {seed_attr} and {second_attr}")
+                # print(f"Match found: {seed_attr} and {second_attr}")
                 break  # Count each seed author only once
     
      #print(f"Total shared count: {sharedCount}")
