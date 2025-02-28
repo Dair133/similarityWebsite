@@ -15,7 +15,7 @@ from pdfProcessing.semanticSearch import SemanticScholar
 from modelFolder.modelRunners.standardModelRunner32k3 import ModelInference
 from modelFolder.metricsCalculator import MetricsCalculator
 from pdfProcessing.SearchTermCache import SearchTermCache
-
+from pdfProcessing.localDatabaseManager import LocalDatabaseManager
 import os
 # backend/app.py
 from flask import Flask
@@ -153,7 +153,6 @@ def process_pdf_route():
         return jsonify({'error': 'No file uploaded'}), 400
     
     file = request.files['file']
-    functionName = request.form.get('functionName')
     pdfName = request.form.get('pdfPath')
     print(pdfName)
     
@@ -173,6 +172,7 @@ def process_pdf_route():
         semanticScholar = SemanticScholar()
         cache = SearchTermCache()
         metricsCalculator = MetricsCalculator()
+        localDatabaseManager = LocalDatabaseManager()
         # Will probably have to change to more generic 'extractPdfInfo', one function extract all necessary info for pdf.
         entireFuncionTime = time.time()
         try:
@@ -180,13 +180,19 @@ def process_pdf_route():
                 if len(entirePDFText) > 10024:
                     entirePDFText = entirePDFText[:8000]
                 
-                # Extract title and initial analysis
-                pfdInfo = processor.ask_claude(pdfText=entirePDFText, 
+                cacheResult = cache.cacheCheck(pdfName)
+                if cacheResult:
+                    print('Document found in cache, no need to query Haiku!')
+                    paperSearchTermsAndTitle = cacheResult
+                else:
+                    print('Document not found in cache, asking Haiku')
+                    pfdInfo = processor.ask_claude(pdfText=entirePDFText, 
                                                      systemInstructions=claudeInstruction_extractTitleMethodInfo,
                                                      api_key=api_key_claude)
-                pdfInfo = pfdInfo.content[0].text
-                print(f"Extracted info: {pdfInfo}")
-                paperSearchTermsAndTitle = processor.parse_paper_info(pdfInfo)
+                    pdfInfo = pfdInfo.content[0].text
+                    print(f"Extracted info: {pdfInfo}")
+                    paperSearchTermsAndTitle = processor.parse_paper_info(pdfInfo)
+                    cache.addPaperCache(pdfName,paperSearchTermsAndTitle)
                 
                 # Try Semantic Scholar first
                 startTime = time.time()
@@ -223,6 +229,8 @@ def process_pdf_route():
                     print("No semantic scholar data")
                     # If no Semantic Scholar data, use Haiku analysis
                     entirePDFText = processor._extract_text(filepath)  # Get full text again if needed
+                    
+                   
                     generalPaperInfo = processor.ask_claude(pdfText=entirePDFText, 
                                                        systemInstructions=claudeInstruction_extractAllInfo, 
                                                        api_key=api_key_claude)
@@ -230,13 +238,13 @@ def process_pdf_route():
                     generalPaperInfo = processor.parse_haiku_output(generalPaperInfo.content[0].text)
                     
                     result = {
-    'title': paperSearchTermsAndTitle['title'],
-    'paper_info': generalPaperInfo,  # Now directly use the parsed results
-    'abstract_info': {
-        'core_methodologies': paperSearchTermsAndTitle['core_methodologies'],
-        'related_methodologies': paperSearchTermsAndTitle['conceptual_angles'],
-    }
-}
+                    'title': paperSearchTermsAndTitle['title'],
+                    'paper_info': generalPaperInfo,  # Now directly use the parsed results
+                    'abstract_info': {
+                    'core_methodologies': paperSearchTermsAndTitle['core_methodologies'],
+                    'related_methodologies': paperSearchTermsAndTitle['conceptual_angles'],
+                        }
+                    }
                     
                 seed_abstract = generalPaperInfo['abstract']
                 seed_embedding = metricsCalculator.get_scibert_embedding(seed_abstract, tokenizer, model)
@@ -250,7 +258,9 @@ def process_pdf_route():
                 parsedSeedCitationList = metricsCalculator.parse_attribute_list(seedCitationList,';')
                 
                 seedAuthorList = generalPaperInfo['authors']
-                parsedSeedAuthorLust = metricsCalculator.parse_attribute_list(seedAuthorList, ',')
+                if isinstance(seedAuthorList, list):
+                    seedAuthorList = ', '.join(seedAuthorList)
+                parsedSeedAuthorList = metricsCalculator.parse_attribute_list(seedAuthorList, ',')
                 papersReturnedThroughSearch = []
                 
                 # Now based on the abstract info extracted from the paper we should search semantic scholar for similar papers
@@ -286,7 +296,7 @@ def process_pdf_route():
                     'weight': 1.0 # High weight for specific methodologies
                 })
                 if len(seedAuthorList) > 0:
-                 for author in parsedSeedAuthorLust:
+                 for author in parsedSeedAuthorList:
                     search_terms.append({
                     'term':author,
                     'type':'author',
@@ -298,37 +308,59 @@ def process_pdf_route():
                 print('search terms are')
                 print(search_terms)
                 papersReturnedThroughSearch = semanticScholar.search_papers_parallel(search_terms, api_key_semantic)
+                
+                openAlexPapers = semanticScholar.search_papers_parallel_ALEX(search_terms,desired_papers=1)
+                #print('OPen alex papers are')
+                #print(openAlexPapers)
                 endTime = time.time()
                 print(f"Time taken for searching using core techniques: {endTime - startTime} seconds")          
-                
+
         
                 seedPaper = {
                     'search_type': 'seed_paper',
                     'paper_info': generalPaperInfo
                 }
-                # Compare seed paper against all papers returned through search
+                                
+                # WORK HERE CLAUDE
+                # Now we should append poison pill papers from the excel
+                poisonPillPapers = localDatabaseManager.load_poison_pill_papers("poison_pill_papers_With_SciBert.xlsx")
+                # Append poison pill papers to the search results
+                if poisonPillPapers and len(poisonPillPapers) > 0:
+                    print(f"Adding {len(poisonPillPapers)} poison pill papers to comparison set")
+                    papersReturnedThroughSearch.extend(poisonPillPapers)
+                else:
+                    print("No poison pill papers found or loaded")
+                
                 startTime = time.time()
-                print("Comparing papers...")
-                similarityResults  = compare_papers(seedPaper, papersReturnedThroughSearch)
+                print("Calculating shared attributes...")
 
-                for paper in similarityResults['compared_papers']:
+                for paper in papersReturnedThroughSearch:
                     referenceList = paper['paper_info'].get('references', [])
-                    sharedReferenceCount = metricsCalculator.compareAttribute(parsedSeedReferenceList, referenceList)
-                    paper['comparison_metrics']['shared_reference_count'] = sharedReferenceCount
-                        
                     citationList = paper['paper_info'].get('citations', [])
-                    sharedCitationCount = metricsCalculator.compareAttribute(parsedSeedCitationList,citationList)
-                    paper['comparison_metrics']['shared_citation_count'] = sharedCitationCount
-                    
                     authorList = paper['paper_info'].get('authors', [])
-                    sharedAuthorCount = metricsCalculator.compareAttribute(parsedSeedAuthorLust,authorList)
+    
+                    sharedReferenceCount = metricsCalculator.compareAttribute(parsedSeedReferenceList, referenceList)
+                    sharedCitationCount = metricsCalculator.compareAttribute(parsedSeedCitationList, citationList)
+                    # And later when comparing
+                    authorList = paper['paper_info'].get('authors', [])
+                    if isinstance(authorList, list):
+                        authorList = ', '.join(authorList)  # Convert to string first if it's a list
+                    sharedAuthorCount = metricsCalculator.compareAttribute(parsedSeedAuthorList, authorList)
+    
+                    if 'comparison_metrics' not in paper:
+                        paper['comparison_metrics'] = {}
+    
+                    paper['comparison_metrics']['shared_reference_count'] = sharedReferenceCount
+                    paper['comparison_metrics']['shared_citation_count'] = sharedCitationCount
                     paper['comparison_metrics']['shared_author_count'] = sharedAuthorCount
-                    
-                    if sharedReferenceCount > 0:
-                        print('Found authors or citaitons or references greater than 0',sharedAuthorCount,sharedCitationCount,sharedReferenceCount)
-                    
 
-                print("Finished comparing papers")
+
+
+
+
+
+                print("Comparing papers...")
+                similarityResults = compare_papers(seedPaper, papersReturnedThroughSearch)
                 endTime = time.time()
                 print(f"Time taken for comparison: {endTime - startTime} seconds")
 
@@ -349,6 +381,7 @@ def process_pdf_route():
                 os.remove(filepath)
                 result['seed_paper'] = seedPaper
                 result['similarity_results'] = relativelySimilarPapers
+                result['openAlex'] = openAlexPapers
                 result['test'] = similarityResults
                 finishingTime = time.time()
                 print(f"Entire function took: {finishingTime - entireFuncionTime} seconds")
@@ -437,13 +470,12 @@ def compare_papers(seed_paper, papers_returned_through_search):
         compared_papers = []
         # Process the results
         for paper, metrics in zip(papers_returned_through_search, metrics_list):
-            # Updated shared data to only include the three features used by new model
+            # Use the pre-calculated shared attributes from the paper
             shared_data = {
-                'shared_references': metrics['shared_reference_count'],
-                'shared_citations': metrics['shared_citation_count'],
-                'shared_authors': metrics['shared_author_count']
+                'shared_references': paper['comparison_metrics'].get('shared_reference_count', 0),
+                'shared_citations': paper['comparison_metrics'].get('shared_citation_count', 0),
+                'shared_authors': paper['comparison_metrics'].get('shared_author_count', 0)
             }
-            
             try:
                 similarity = inference.predict_similarity(
                     paper1_SciBert=seed_paper['paper_info'].get('scibert', []),
@@ -453,6 +485,13 @@ def compare_papers(seed_paper, papers_returned_through_search):
             except Exception as e:
                 logging.error(f"Error in similarity prediction: {str(e)}")
                 similarity = 0.0
+            
+            # Ensure the comparison_metrics in metrics preserves the shared counts
+            if 'comparison_metrics' in paper:
+                # Copy the pre-calculated shared counts into metrics
+                metrics['shared_reference_count'] = paper['comparison_metrics'].get('shared_reference_count', 0)
+                metrics['shared_citation_count'] = paper['comparison_metrics'].get('shared_citation_count', 0)
+                metrics['shared_author_count'] = paper['comparison_metrics'].get('shared_author_count', 0)
             
             compared_paper = {
                 'source_info': paper.get('source_info', {}),

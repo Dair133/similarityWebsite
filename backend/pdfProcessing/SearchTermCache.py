@@ -40,9 +40,9 @@ class SearchTermCache:
         print(f"Error creating cache file: {str(e)}")
         return False
     
-    def cacheCheck(self,pdfTitle, pdfDataToCache):
+    def cacheCheck(self,pdfTitle):
         currentCacheLength = self.count_cache_entries()
-        print("Checking cache, there are currently "+currentCacheLength+"entries")
+        print("Checking cache, there are currently " + str(currentCacheLength) + " entries")
         # If json file has a entry under 
         paperCacheTitle = self.generatePaperId(pdfTitle)
         
@@ -54,14 +54,12 @@ class SearchTermCache:
                 return cache_data[paperCacheTitle]
             else:
             # If error when reading thena ssume that paper does not exist
-                self.addPaperCache(paperCacheTitle, pdfDataToCache)
                 return False
         except json.JSONDecodeError:
             print('Error when searching for cache - JSON Decode error')
             return False
         except FileNotFoundError:
             print('Cache File not found - creating new cache file')
-            self.createCacheFile(paperCacheTitle, pdfDataToCache)
             return False
              
     
@@ -70,14 +68,13 @@ class SearchTermCache:
         cleaned_title = pdfTitle.strip().lower()
         return hashlib.md5(cleaned_title.encode('utf-8')).hexdigest()
     
-    def addPaperCache(self,pdfHashTitle,dataToStore):
+    def addPaperCache(self,pdfTitle,dataToStore):
+        pdfHashedTitle = self.generatePaperId(pdfTitle)
                 # Make sure our cache file exists
         if not os.path.exists(self.cache_file_path):
             # Create an empty dictionary in the cache file
             with open(self.cache_file_path, 'w') as f:
                 json.dump({}, f)
-                
-                
         try:
             with open(self.cache_file_path, 'r')as f:
                 cache_data = json.load(f)
@@ -85,7 +82,7 @@ class SearchTermCache:
             print('Error in parsing cache file, please review')
             cache_data = {}
             
-        cache_data[pdfHashTitle] = dataToStore
+        cache_data[pdfHashedTitle] = dataToStore
         
         try:
             with open(self.cache_file_path,'w') as f:

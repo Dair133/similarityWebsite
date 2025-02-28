@@ -16,6 +16,10 @@ import time
 from typing import List, Dict, Any
 from torch.nn.functional import cosine_similarity
 from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import List, Dict
+import requests
+import time
 class SemanticScholar:
     def __init__(self):
         self.max_workers = 5
@@ -424,4 +428,182 @@ class SemanticScholar:
      except Exception as e:
         print(f"Error in search_papers_parallel: {str(e)}")
         return []
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    def _make_request_ALEX(self, url: str, params: Dict) -> Dict:
+     """Helper function that wraps requests.get with better error reporting."""
+     try:
+        print(f"Making request to {url} with params {params}")  # Debug logging
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        data = response.json()
+        print(f"Got response with {len(data.get('results', []))} results")  # Debug logging
+        return data
+     except requests.exceptions.HTTPError as e:
+        print(f"HTTP Error for URL {url}: {e.response.status_code} - {e.response.text}")
+        return {"results": []}
+     except Exception as e:
+        print(f"Request failed for URL {url}: {str(e)}")
+        return {"results": []}
+
+    def decode_inverted_index(self, inverted_index: Dict) -> str:
+        """
+        Reconstruct the abstract from OpenAlex's inverted index format.
+        Returns a plain text abstract or None if not possible.
+        """
+        if not inverted_index:
+            return None
+        max_index = 0
+        for positions in inverted_index.values():
+            if positions:
+                max_index = max(max_index, max(positions))
+        words_list = [""] * (max_index + 1)
+        for word, positions in inverted_index.items():
+            for pos in positions:
+                words_list[pos] = word
+        abstract_text = " ".join(words_list).strip()
+        return abstract_text if abstract_text else None
+
+
+    def get_citations(self, work_id: str, limit: int = 20) -> List[str]:
+     """
+    Retrieves a list of citation titles for a given work.
+    """
+     base_url = "https://api.openalex.org/works"
+    # Ensure work_id is properly formatted
+     if not work_id.startswith("https://openalex.org/"):
+        work_id = f"https://openalex.org/{work_id}"
+        
+     params = {
+        "filter": f"cites:{work_id}",
+        "per-page": limit,
+        "fields": "display_name"
+    }
+    
+     print(f"Fetching citations for {work_id}")  # Debug
+     result = self._make_request_ALEX(base_url, params)
+     if not result or "results" not in result:
+        return []
+        
+     citations = result.get("results", [])
+     citation_titles = [citation.get("display_name", "N/A") for citation in citations]
+     return citation_titles
+
+    def search_papers_parallel_ALEX(self, search_terms: List[Dict], desired_papers: int) -> List[Dict]:
+        """
+        Parallel search using OpenAlex.
+        For each search term (a dict with keys "term", "type", and optionally "weight"),
+        queries OpenAlex for papers and returns a list of dictionaries with valid paper information.
+        Ensures all returned papers have a valid abstract (>=15 characters).
+        Each returned record has:
+            - source_info: { "search_term": ..., "search_type": ... }
+            - paper_info: {
+                  "title": ..., "abstract": ..., "year": ...,
+                  "citation_count": ...,
+                  "authors": [...],
+                  "references": [...],
+                  "citations": [...]  # List of citing paper titles
+              }
+        """
+        base_url = "https://api.openalex.org/works"
+
+        fields = "display_name,abstract_inverted_index,publication_year,cited_by_count,authorships,referenced_works"
+        per_page = 20  # Adjust as needed
+
+        def search_single_term(term_info: Dict) -> List[Dict]:
+            valid_papers = []
+            if not term_info or 'term' not in term_info:
+                print(f"Invalid term_info: {term_info}")
+                return []
+            page = 1
+            # Continue paginating until we collect the desired number of valid papers
+            while len(valid_papers) < desired_papers:
+                params = {
+                    "search": term_info['term'],
+                    "page": page,
+                    "per-page": per_page,
+                    "select": fields
+                }
+                result = self._make_request_ALEX(base_url, params)
+                if not result:
+                    #print(f"No result for term: {term_info['term']} on page {page}")
+                    break
+                works = result.get("results", [])
+                if not works:
+                    # No more results available
+                    break
+
+                for work in works:
+                    if not work:
+                        continue
+                    abstract_inverted = work.get("abstract_inverted_index")
+                    abstract = self.decode_inverted_index(abstract_inverted)
+                    if not abstract or not (isinstance(abstract, str) and len(abstract) >= 15):
+                        continue  # Skip if abstract is missing or too short
+
+                    # Build source info for tracking
+                    source_info = {
+                        "search_term": term_info['term'],
+                        "search_type": term_info.get("type", "N/A")
+                    }
+                    # Extract basic fields from OpenAlex
+                    title = work.get("display_name", "N/A")
+                    year = work.get("publication_year", "N/A")
+                    citation_count = work.get("cited_by_count", 0)
+                    # Extract authors from the authorships list
+                    authors_list = work.get("authorships", [])
+                    authors = []
+                    for auth in authors_list:
+                        author = auth.get("author", {})
+                        if "display_name" in author:
+                            authors.append(author["display_name"])
+                    # References: these are provided as a list of OpenAlex IDs
+                    references = work.get("referenced_works", [])
+
+                    # Get citations (list of citing paper titles) via an extra request.
+                    # Note: This extra request is made per paper.
+                    work_id = work.get("id", "")
+                    citations = self.get_citations(work_id) if work_id else []
+
+                    paper_info = {
+                        "source_info": source_info,
+                        "paper_info": {
+                            "title": title,
+                            "abstract": abstract,
+                            "year": year,
+                            "citation_count": citation_count,
+                            "authors": authors,
+                            "references": references,
+                            "citations": citations
+                        }
+                    }
+                    valid_papers.append(paper_info)
+                    if len(valid_papers) >= desired_papers:
+                        break
+
+                #print(f"Term '{term_info['term']}' page {page} processed: {len(valid_papers)} valid papers collected so far.")
+                page += 1
+                time.sleep(1)  # Be polite to the API
+            #print(f"Found {len(valid_papers)} valid papers for term: {term_info['term']}")
+            return valid_papers
+
+        all_valid_papers = []
+        # Use ThreadPoolExecutor to run the term searches in parallel.
+        with ThreadPoolExecutor(max_workers=len(search_terms)) as executor:
+            futures = {executor.submit(search_single_term, term): term for term in search_terms}
+            for future in as_completed(futures):
+                term = futures[future]
+                try:
+                    papers = future.result()
+                    all_valid_papers.extend(papers)
+                except Exception as e:
+                    print(f"Error processing term {term.get('term', 'unknown')}: {e}")
+        return all_valid_papers
         
