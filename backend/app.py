@@ -259,7 +259,9 @@ def process_pdf_route():
                 parsedSeedCitationList = metricsCalculator.parse_attribute_list(seedCitationList,';')
                 
                 seedAuthorList = generalPaperInfo['authors']
-                parsedSeedAuthorLust = metricsCalculator.parse_attribute_list(seedAuthorList, ',')
+                if isinstance(seedAuthorList, list):
+                    seedAuthorList = ', '.join(seedAuthorList)
+                parsedSeedAuthorList = metricsCalculator.parse_attribute_list(seedAuthorList, ',')
                 papersReturnedThroughSearch = []
                 
                 # Now based on the abstract info extracted from the paper we should search semantic scholar for similar papers
@@ -295,7 +297,7 @@ def process_pdf_route():
                     'weight': 1.0 # High weight for specific methodologies
                 })
                 if len(seedAuthorList) > 0:
-                 for author in parsedSeedAuthorLust:
+                 for author in parsedSeedAuthorList:
                     search_terms.append({
                     'term':author,
                     'type':'author',
@@ -310,6 +312,8 @@ def process_pdf_route():
                 endTime = time.time()
                 print(f"Time taken for searching using core techniques: {endTime - startTime} seconds")          
                 
+                # WORK HERE CLAUDE
+                # Now we should append poison pill papers from the excel
         
                 seedPaper = {
                     'search_type': 'seed_paper',
@@ -317,27 +321,30 @@ def process_pdf_route():
                 }
                 # Compare seed paper against all papers returned through search
                 startTime = time.time()
-                print("Comparing papers...")
-                similarityResults  = compare_papers(seedPaper, papersReturnedThroughSearch)
+                print("Calculating shared attributes...")
 
-                for paper in similarityResults['compared_papers']:
+                for paper in papersReturnedThroughSearch:
                     referenceList = paper['paper_info'].get('references', [])
-                    sharedReferenceCount = metricsCalculator.compareAttribute(parsedSeedReferenceList, referenceList)
-                    paper['comparison_metrics']['shared_reference_count'] = sharedReferenceCount
-                        
                     citationList = paper['paper_info'].get('citations', [])
-                    sharedCitationCount = metricsCalculator.compareAttribute(parsedSeedCitationList,citationList)
-                    paper['comparison_metrics']['shared_citation_count'] = sharedCitationCount
-                    
                     authorList = paper['paper_info'].get('authors', [])
-                    sharedAuthorCount = metricsCalculator.compareAttribute(parsedSeedAuthorLust,authorList)
+    
+                    sharedReferenceCount = metricsCalculator.compareAttribute(parsedSeedReferenceList, referenceList)
+                    sharedCitationCount = metricsCalculator.compareAttribute(parsedSeedCitationList, citationList)
+                    # And later when comparing
+                    authorList = paper['paper_info'].get('authors', [])
+                    if isinstance(authorList, list):
+                        authorList = ', '.join(authorList)  # Convert to string first if it's a list
+                    sharedAuthorCount = metricsCalculator.compareAttribute(parsedSeedAuthorList, authorList)
+    
+                    if 'comparison_metrics' not in paper:
+                        paper['comparison_metrics'] = {}
+    
+                    paper['comparison_metrics']['shared_reference_count'] = sharedReferenceCount
+                    paper['comparison_metrics']['shared_citation_count'] = sharedCitationCount
                     paper['comparison_metrics']['shared_author_count'] = sharedAuthorCount
-                    
-                    if sharedReferenceCount > 0:
-                        print('Found authors or citaitons or references greater than 0',sharedAuthorCount,sharedCitationCount,sharedReferenceCount)
-                    
 
-                print("Finished comparing papers")
+                print("Comparing papers...")
+                similarityResults = compare_papers(seedPaper, papersReturnedThroughSearch)
                 endTime = time.time()
                 print(f"Time taken for comparison: {endTime - startTime} seconds")
 
@@ -446,13 +453,13 @@ def compare_papers(seed_paper, papers_returned_through_search):
         compared_papers = []
         # Process the results
         for paper, metrics in zip(papers_returned_through_search, metrics_list):
-            # Updated shared data to only include the three features used by new model
+            # Use the pre-calculated shared attributes from the paper
             shared_data = {
-                'shared_references': metrics['shared_reference_count'],
-                'shared_citations': metrics['shared_citation_count'],
-                'shared_authors': metrics['shared_author_count']
+                'shared_references': paper['comparison_metrics'].get('shared_reference_count', 0),
+                'shared_citations': paper['comparison_metrics'].get('shared_citation_count', 0),
+                'shared_authors': paper['comparison_metrics'].get('shared_author_count', 0)
             }
-            
+            print("Using shared count",shared_data['shared_authors'])
             try:
                 similarity = inference.predict_similarity(
                     paper1_SciBert=seed_paper['paper_info'].get('scibert', []),
@@ -462,6 +469,13 @@ def compare_papers(seed_paper, papers_returned_through_search):
             except Exception as e:
                 logging.error(f"Error in similarity prediction: {str(e)}")
                 similarity = 0.0
+            
+            # Ensure the comparison_metrics in metrics preserves the shared counts
+            if 'comparison_metrics' in paper:
+                # Copy the pre-calculated shared counts into metrics
+                metrics['shared_reference_count'] = paper['comparison_metrics'].get('shared_reference_count', 0)
+                metrics['shared_citation_count'] = paper['comparison_metrics'].get('shared_citation_count', 0)
+                metrics['shared_author_count'] = paper['comparison_metrics'].get('shared_author_count', 0)
             
             compared_paper = {
                 'source_info': paper.get('source_info', {}),

@@ -303,17 +303,34 @@ class MetricsCalculator:
  
     def parse_attribute_list(self ,attributeList : str, delimiter : str) -> List[str]:
         listResults = attributeList.split(delimiter)
-        print(listResults)
         return listResults
         
  
     def compareAttribute(self, seedAttributeArray, secondAttributeArray): 
-        sharedCount = 0
-        for attribute in seedAttributeArray:
-            for secondAttribute in secondAttributeArray:
-                if(attribute == secondAttribute):
-                    sharedCount = sharedCount + 1
-        print(sharedCount)
-        return sharedCount
+    # Ensure secondAttributeArray is a list and not a string
+     if isinstance(secondAttributeArray, str):
+        secondAttributeArray = secondAttributeArray.split(',')
+    
+    # Normalize both arrays to ensure fair comparison
+     normalized_seed = [attr.strip().lower() for attr in seedAttributeArray if attr.strip()]
+     normalized_second = [attr.strip().lower() for attr in secondAttributeArray if attr.strip()]
+    
+    # Debug output
+    # print("Seed authors:", normalized_seed)
+     #print("Second authors:", normalized_second)
+    
+    # Count shared attributes with more lenient comparison
+     sharedCount = 0
+     for seed_attr in normalized_seed:
+        for second_attr in normalized_second:
+            # Use "in" for more lenient matching
+            if seed_attr == second_attr or seed_attr in second_attr or second_attr in seed_attr:
+                sharedCount += 1
+                # Debug which authors matched
+                print(f"Match found: {seed_attr} and {second_attr}")
+                break  # Count each seed author only once
+    
+     #print(f"Total shared count: {sharedCount}")
+     return sharedCount
                     
         
