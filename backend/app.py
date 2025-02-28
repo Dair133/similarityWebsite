@@ -153,7 +153,6 @@ def process_pdf_route():
         return jsonify({'error': 'No file uploaded'}), 400
     
     file = request.files['file']
-    functionName = request.form.get('functionName')
     pdfName = request.form.get('pdfPath')
     print(pdfName)
     
@@ -180,13 +179,21 @@ def process_pdf_route():
                 if len(entirePDFText) > 10024:
                     entirePDFText = entirePDFText[:8000]
                 
-                # Extract title and initial analysis
-                pfdInfo = processor.ask_claude(pdfText=entirePDFText, 
+                # If it finds cache return data, if not return false
+                print('About to check cache')
+                cacheResult = cache.cacheCheck(pdfName)
+                if cacheResult:
+                    print('Document found in cache, no need to query Haiku!')
+                    paperSearchTermsAndTitle = cacheResult
+                else:
+                    print('Document not found in cache, asking Haiku')
+                    pfdInfo = processor.ask_claude(pdfText=entirePDFText, 
                                                      systemInstructions=claudeInstruction_extractTitleMethodInfo,
                                                      api_key=api_key_claude)
-                pdfInfo = pfdInfo.content[0].text
-                print(f"Extracted info: {pdfInfo}")
-                paperSearchTermsAndTitle = processor.parse_paper_info(pdfInfo)
+                    pdfInfo = pfdInfo.content[0].text
+                    print(f"Extracted info: {pdfInfo}")
+                    paperSearchTermsAndTitle = processor.parse_paper_info(pdfInfo)
+                    cache.addPaperCache(pdfName,paperSearchTermsAndTitle)
                 
                 # Try Semantic Scholar first
                 startTime = time.time()
@@ -223,6 +230,8 @@ def process_pdf_route():
                     print("No semantic scholar data")
                     # If no Semantic Scholar data, use Haiku analysis
                     entirePDFText = processor._extract_text(filepath)  # Get full text again if needed
+                    
+                   
                     generalPaperInfo = processor.ask_claude(pdfText=entirePDFText, 
                                                        systemInstructions=claudeInstruction_extractAllInfo, 
                                                        api_key=api_key_claude)
@@ -230,13 +239,13 @@ def process_pdf_route():
                     generalPaperInfo = processor.parse_haiku_output(generalPaperInfo.content[0].text)
                     
                     result = {
-    'title': paperSearchTermsAndTitle['title'],
-    'paper_info': generalPaperInfo,  # Now directly use the parsed results
-    'abstract_info': {
-        'core_methodologies': paperSearchTermsAndTitle['core_methodologies'],
-        'related_methodologies': paperSearchTermsAndTitle['conceptual_angles'],
-    }
-}
+                    'title': paperSearchTermsAndTitle['title'],
+                    'paper_info': generalPaperInfo,  # Now directly use the parsed results
+                    'abstract_info': {
+                    'core_methodologies': paperSearchTermsAndTitle['core_methodologies'],
+                    'related_methodologies': paperSearchTermsAndTitle['conceptual_angles'],
+                        }
+                    }
                     
                 seed_abstract = generalPaperInfo['abstract']
                 seed_embedding = metricsCalculator.get_scibert_embedding(seed_abstract, tokenizer, model)
