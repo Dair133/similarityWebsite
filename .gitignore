@@ -29,6 +29,8 @@ backend/testing/~$seedPaper.xlsx
 .pdf
 .json
 *.json
+!package.json
+!package-lock.json
 *.pdf
 
 # Python
