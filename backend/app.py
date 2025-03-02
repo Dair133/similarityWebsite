@@ -73,6 +73,7 @@ The output format MUST be followed EXACTLY as specified. Any deviation will caus
 - Providing exactly 3 items for each category
 
 This output is programmatically parsed and any formatting change will break the automated system.
+MOST IMPORTANT POINT, IS THAT YOU PICK OUT TERMS WHICH WILL NOT LARGE SETS OF TOTALLY DIFFFERENT UNRELATED PAPERS
 """
 
 
@@ -327,9 +328,6 @@ def process_pdf_route():
                 if poisonPillPapers and len(poisonPillPapers) > 0:
                     print(f"Adding {len(poisonPillPapers)} poison pill papers to comparison set")
                     papersReturnedThroughSearch.extend(poisonPillPapers)
-                    papersReturnedThroughSearch.extend(poisonPillPapers)
-                    papersReturnedThroughSearch.extend(poisonPillPapers)
-                    papersReturnedThroughSearch.extend(poisonPillPapers)
                 else:
                     print("No poison pill papers found or loaded")
                 
@@ -364,6 +362,9 @@ def process_pdf_route():
                 print("Comparing papers...")
                 relativelySimilarPapers = processor.remove_duplicates(papersReturnedThroughSearch)
                 similarityResults = compare_papers(seedPaper, papersReturnedThroughSearch)
+                papersReturnedThroughSearch.extend(poisonPillPapers)
+                papersReturnedThroughSearch.extend(poisonPillPapers)
+                papersReturnedThroughSearch.extend(poisonPillPapers)
                 endTime = time.time()
                 print(f"Time taken for comparison: {endTime - startTime} seconds")
 
@@ -372,9 +373,13 @@ def process_pdf_route():
                 startTime = time.time()
                 relativelySimilarPapers = metricsCalculator.apply_source_weights(similarityResults['compared_papers'])
                 relativelySimilarPapers = metricsCalculator.get_relatively_similar_papers(relativelySimilarPapers['compared_papers'])
+                recommendations = metricsCalculator.get_recommendations(seedPaper, relativelySimilarPapers)
                 endTime = time.time()
                 print(f"Time taken for filtering similar papers: {endTime - startTime} seconds")
-        
+                # Remove the 'scibert' attribute from relatively similar papers
+                for paper in relativelySimilarPapers:
+                    if 'scibert' in paper['paper_info']:
+                        del paper['paper_info']['scibert']
         
         
                 # Remove the 'scibert' attribute from relatively similar papers
@@ -385,6 +390,7 @@ def process_pdf_route():
                 os.remove(filepath)
                 result['seed_paper'] = seedPaper
                 result['similarity_results'] = relativelySimilarPapers
+                result['recommendations'] = recommendations  # Add recommendations to result
                 result['openAlex'] = openAlexPapers
                 result['test'] = similarityResults
                 finishingTime = time.time()

@@ -333,4 +333,105 @@ class MetricsCalculator:
      #print(f"Total shared count: {sharedCount}")
      return sharedCount
                     
+    def recommend_authors(self, seed_paper: dict, similar_papers: list, min_appearances: int = 2) -> list:
+
+    # Extract seed paper authors
+     seed_authors = set()
+     if isinstance(seed_paper['paper_info'].get('authors', ''), list):
+        seed_authors = {author.lower() for author in seed_paper['paper_info'].get('authors', [])}
+     else:
+        # If authors is a string, split by comma
+        seed_authors = {author.strip().lower() for author in seed_paper['paper_info'].get('authors', '').split(',') if author.strip()}
+    
+     # Count author appearances in similar papers
+     author_counts = {}
+     for paper in similar_papers:
+        paper_authors = []
+        if isinstance(paper['paper_info'].get('authors', ''), list):
+            paper_authors = paper['paper_info'].get('authors', [])
+        else:
+            # If authors is a string, split by comma
+            paper_authors = [author.strip() for author in paper['paper_info'].get('authors', '').split(',') if author.strip()]
+        
+        # Count each unique author once per paper
+        for author in paper_authors:
+            if not author or author.lower() in seed_authors:
+                continue
+            
+            author_counts[author] = author_counts.get(author, 0) + 1
+    
+     # Filter by minimum appearances and sort by count
+     recommendations = [
+        {"author": author, "appearances": count, "rank": 0}
+        for author, count in author_counts.items()
+        if count >= min_appearances
+    ]
+    
+    # Sort by appearance count (descending)
+     recommendations.sort(key=lambda x: x["appearances"], reverse=True)
+    
+    # Add ranking
+     for i, rec in enumerate(recommendations):
+        rec["rank"] = i + 1
+    
+     return recommendations
+
+    def recommend_citations_references(self, seed_paper: dict, similar_papers: list, field: str = 'citations', min_appearances: int = 3) -> list:
+
+    # Validate field
+     if field not in ['citations', 'references']:
+        raise ValueError("Field must be either 'citations' or 'references'")
+    
+    # Extract seed paper citations/references
+     seed_items = set()
+     seed_items_raw = seed_paper['paper_info'].get(field, '')
+    
+     if isinstance(seed_items_raw, list):
+        seed_items = {item.lower() for item in seed_items_raw}
+     else:
+        # If it's a string, split by semicolon
+        seed_items = {item.strip().lower() for item in seed_items_raw.split(';') if item.strip()}
+    
+     # Count citation/reference appearances in similar papers
+     item_counts = {}
+     for paper in similar_papers:
+        paper_items = []
+        
+        paper_items_raw = paper['paper_info'].get(field, '')
+        if isinstance(paper_items_raw, list):
+            paper_items = paper_items_raw
+        else:
+            # If it's a string, split by semicolon
+            paper_items = [item.strip() for item in paper_items_raw.split(';') if item.strip()]
+        
+        # Count each unique citation/reference once per paper
+        for item in paper_items:
+            if not item or item.lower() in seed_items:
+                continue
+            
+            item_counts[item] = item_counts.get(item, 0) + 1
+    
+    # Filter by minimum appearances and sort by count
+     recommendations = [
+        {"title": item, "appearances": count, "rank": 0}
+        for item, count in item_counts.items()
+        if count >= min_appearances
+    ]
+    
+    # Sort by appearance count (descending)
+     recommendations.sort(key=lambda x: x["appearances"], reverse=True)
+    
+    # Add ranking
+     for i, rec in enumerate(recommendations):
+        rec["rank"] = i + 1
+    
+     return recommendations
+
+    def get_recommendations(self, seed_paper: dict, similar_papers: list) -> dict:
+
+     return {
+        "recommended_authors": self.recommend_authors(seed_paper, similar_papers, min_appearances=2),
+        "recommended_citations": self.recommend_citations_references(seed_paper, similar_papers, field='citations', min_appearances=3),
+        "recommended_references": self.recommend_citations_references(seed_paper, similar_papers, field='references', min_appearances=3)
+    }
         
