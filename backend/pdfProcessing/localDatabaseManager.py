@@ -61,10 +61,10 @@ class LocalDatabaseManager:
                 
                 # Create paper structure matching what's expected by the comparison function
                 paper = {
-                    'source_info': [{
+                    'source_info': {
                         'search_term': 'poisonPill',
                         'search_type': 'poisonPill'
-                    }],
+                    },
                     'paper_info': {
                         'title': str(row.get('Title', 'Unknown Title')),
                         'abstract': str(row.get('Abstract', '')),
