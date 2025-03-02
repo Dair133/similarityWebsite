@@ -309,9 +309,8 @@ def process_pdf_route():
                 print(search_terms)
                 papersReturnedThroughSearch = semanticScholar.search_papers_parallel(search_terms, api_key_semantic)
                 
-                openAlexPapers = semanticScholar.search_papers_parallel_ALEX(search_terms,desired_papers=1)
-                #print('OPen alex papers are')
-                #print(openAlexPapers)
+                openAlexPapers = semanticScholar.search_papers_parallel_ALEX(search_terms,desired_papers=100)
+                papersReturnedThroughSearch.extend(openAlexPapers)
                 endTime = time.time()
                 print(f"Time taken for searching using core techniques: {endTime - startTime} seconds")          
 
@@ -327,6 +326,9 @@ def process_pdf_route():
                 # Append poison pill papers to the search results
                 if poisonPillPapers and len(poisonPillPapers) > 0:
                     print(f"Adding {len(poisonPillPapers)} poison pill papers to comparison set")
+                    papersReturnedThroughSearch.extend(poisonPillPapers)
+                    papersReturnedThroughSearch.extend(poisonPillPapers)
+                    papersReturnedThroughSearch.extend(poisonPillPapers)
                     papersReturnedThroughSearch.extend(poisonPillPapers)
                 else:
                     print("No poison pill papers found or loaded")
@@ -360,6 +362,7 @@ def process_pdf_route():
 
 
                 print("Comparing papers...")
+                relativelySimilarPapers = processor.remove_duplicates(papersReturnedThroughSearch)
                 similarityResults = compare_papers(seedPaper, papersReturnedThroughSearch)
                 endTime = time.time()
                 print(f"Time taken for comparison: {endTime - startTime} seconds")
@@ -371,6 +374,7 @@ def process_pdf_route():
                 relativelySimilarPapers = metricsCalculator.get_relatively_similar_papers(relativelySimilarPapers['compared_papers'])
                 endTime = time.time()
                 print(f"Time taken for filtering similar papers: {endTime - startTime} seconds")
+        
         
         
                 # Remove the 'scibert' attribute from relatively similar papers

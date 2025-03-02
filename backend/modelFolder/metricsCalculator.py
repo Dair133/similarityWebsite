@@ -192,7 +192,7 @@ class MetricsCalculator:
 
 
 
-    def get_relatively_similar_papers(self, papers, min_results=5, max_results=20):
+    def get_relatively_similar_papers(self, papers, min_results=50, max_results=80):
     # First, ensure we have valid similarity scores and can access them
      try:
         # Handle both dictionary and list formats

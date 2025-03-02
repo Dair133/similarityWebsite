@@ -20,14 +20,19 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import List, Dict
 import requests
 import time
+import re
 class SemanticScholar:
     def __init__(self):
         self.max_workers = 5
         self.session = requests.Session()
         self.base_delay = 0.2  # Base delay between requests
         
+    def remove_letters(input_string):
+        return re.sub(r'[A-Za-z]', '', input_string)
         
     def get_paper_details(self, paper_id: str, api_key: str) -> Dict[str, Any]:
+        print(paper_id)
+        # aper_id = re.sub(r'[A-Za-z]', '', paper_id)
         url = f"https://api.semanticscholar.org/graph/v1/paper/{paper_id}"
         headers = {"x-api-key": api_key}
 
@@ -65,68 +70,66 @@ class SemanticScholar:
    
    
     def return_info_by_title(self, title: str, api_key: str) -> Dict[str, Any]:
-        try:
-            # Search for the paper
-            search_url = "https://api.semanticscholar.org/graph/v1/paper/search"
-            headers = {"x-api-key": api_key}
+     try:
+        # Search for the paper directly with all needed fields
+        search_url = "https://api.semanticscholar.org/graph/v1/paper/search"
+        headers = {"x-api-key": api_key}
 
-            params = {
-              "query": title,
-              "limit": 1,
-              "fields": "paperId,title,abstract,year,citationCount,authors.name,citations.title,references.title"
-            }
+        # Request all the fields we need directly in the search
+        params = {
+            "query": title,
+            "limit": 1,  # Just get the top result
+            "fields": "title,abstract,year,citationCount,authors.name,citations.title,references.title"
+        }
 
-            max_retries = 5
-            retry_count = 0
-            retry_delay = 1  # Start with 2 second delay
+        max_retries = 5
+        retry_count = 0
+        retry_delay = 1  # Start with 1 second delay
 
-            while retry_count < max_retries:
-                try:
-                    response = requests.get(search_url, headers=headers, params=params)
-                    response.raise_for_status()
-                    search_data = response.json()
-                    break  # If successful, exit the retry loop
-                except requests.exceptions.HTTPError as e:
-                    if e.response.status_code == 429:  # Rate limit error
-                        retry_count += 1
-                        if retry_count == max_retries:
-                            print(f"Failed after {max_retries} retries due to rate limiting")
-                            return None
-
-                        # Exponential backoff: increase delay each retry
-                        wait_time = retry_delay * (2 ** (retry_count - 1))
-                        print(f"Rate limit hit in return by title, waiting {wait_time} seconds before retry {retry_count}")
-                        time.sleep(wait_time)
-                        continue
-                    else:
-                        print(f"Error searching for paper: {e}")
+        while retry_count < max_retries:
+            try:
+                response = requests.get(search_url, headers=headers, params=params)
+                response.raise_for_status()
+                search_data = response.json()
+                break  # If successful, exit the retry loop
+            except requests.exceptions.HTTPError as e:
+                if e.response.status_code == 429:  # Rate limit error
+                    retry_count += 1
+                    if retry_count == max_retries:
+                        print(f"Failed after {max_retries} retries due to rate limiting")
                         return None
-                except Exception as e:
+
+                    # Exponential backoff: increase delay each retry
+                    wait_time = retry_delay * (2 ** (retry_count - 1))
+                    print(f"Rate limit hit in return by title, waiting {wait_time} seconds before retry {retry_count}")
+                    time.sleep(wait_time)
+                    continue
+                else:
                     print(f"Error searching for paper: {e}")
                     return None
-
-            if not search_data.get('data') or len(search_data['data']) == 0:
-                # print(f"No results found for title: {title}")
+            except Exception as e:
+                print(f"Error searching for paper: {e}")
                 return None
 
-            paper_id = search_data['data'][0].get('paperId')
-            if not paper_id:
-                return None
-
-
-            paper_data = self.get_paper_details(paper_id, api_key)
-            # If a paper does not have a valid abstract then return none
-            # Abstracts are too important to the overall calcualtion of similarity to do without them
-            if paper_data['abstract'] == None:
-                return None
-            if not paper_data:
-                return None
-
-            return self.format_paper_data(paper_data)
-
-        except Exception as e:
-            print(f"Error searching for paper: {e}")
+        # Check if we got any results
+        if not search_data.get('data') or len(search_data['data']) == 0:
+            print(f"No results found for title: {title}")
             return None
+
+        # Get the first (and only) result
+        paper_data = search_data['data'][0]
+        
+        # Check if it has an abstract (which you mentioned is essential)
+        if paper_data.get('abstract') is None:
+            print(f"Paper found, but it has no abstract: {title}")
+            return None
+
+        # Format the paper data directly using the search result
+        return self.format_paper_data(paper_data)
+
+     except Exception as e:
+        print(f"Error searching for paper: {e}")
+        return None
         
         
         
@@ -405,10 +408,11 @@ class SemanticScholar:
             title = paper['paper_info']['title']
             if title not in papers_by_title:
                 papers_by_title[title] = paper
-                papers_by_title[title]['source_info'] = [paper['source_info']]
+                # papers_by_title[title]['source_info'] = [paper['source_info']]
             else:
                 # If we've seen this paper before, add the new source info
-                papers_by_title[title]['source_info'].append(paper['source_info'])
+                #papers_by_title[title]['source_info'].append(paper['source_info'])
+                pass
         
         # Convert back to list
         final_papers = list(papers_by_title.values())
@@ -496,114 +500,124 @@ class SemanticScholar:
      citation_titles = [citation.get("display_name", "N/A") for citation in citations]
      return citation_titles
 
+
+
+    def get_citations(self, work_id: str, limit: int = 20) -> List[str]:
+     """
+    Retrieves a list of citation id-links for a given work.
+    Since OpenAlex does not include detailed citation data in the main works endpoint,
+    we query the works endpoint with a filter for works that cite the given work.
+    Returns a list of citation id-links (up to 'limit' items).
+    """
+     base_url = "https://api.openalex.org/works"
+     params = {
+        "filter": f"cites:{work_id}",
+        "per-page": limit,
+        "fields": "id"
+    }
+     result = self._make_request_ALEX(base_url, params)
+     if not result:
+        return []
+     citations = result.get("results", [])
+     citation_ids = [citation.get("id", "N/A") for citation in citations]
+    # Convert each citation id into a full OpenAlex link.
+     citation_links = [f"https://openalex.org/{cid}" for cid in citation_ids if cid != "N/A"]
+     return citation_links
+
+
     def search_papers_parallel_ALEX(self, search_terms: List[Dict], desired_papers: int) -> List[Dict]:
-        """
-        Parallel search using OpenAlex.
-        For each search term (a dict with keys "term", "type", and optionally "weight"),
-        queries OpenAlex for papers and returns a list of dictionaries with valid paper information.
-        Ensures all returned papers have a valid abstract (>=15 characters).
-        Each returned record has:
-            - source_info: { "search_term": ..., "search_type": ... }
-            - paper_info: {
-                  "title": ..., "abstract": ..., "year": ...,
-                  "citation_count": ...,
-                  "authors": [...],
-                  "references": [...],
-                  "citations": [...]  # List of citing paper titles
-              }
-        """
-        base_url = "https://api.openalex.org/works"
 
-        fields = "display_name,abstract_inverted_index,publication_year,cited_by_count,authorships,referenced_works"
-        per_page = 20  # Adjust as needed
+     base_url = "https://api.openalex.org/works"
+    # Request these fields from OpenAlex.
+     fields = "display_name,abstract_inverted_index,publication_year,cited_by_count,authorships,referenced_works"
+     per_page = 20  # Adjust as needed
 
-        def search_single_term(term_info: Dict) -> List[Dict]:
-            valid_papers = []
-            if not term_info or 'term' not in term_info:
-                print(f"Invalid term_info: {term_info}")
-                return []
-            page = 1
-            # Continue paginating until we collect the desired number of valid papers
-            while len(valid_papers) < desired_papers:
-                params = {
-                    "search": term_info['term'],
-                    "page": page,
-                    "per-page": per_page,
-                    "select": fields
+     def search_single_term(term_info: Dict) -> List[Dict]:
+        valid_papers = []
+        if not term_info or 'term' not in term_info:
+            print(f"Invalid term_info: {term_info}")
+            return []
+        page = 1
+        # Continue paginating until we collect the desired number of valid papers.
+        while len(valid_papers) < desired_papers:
+            params = {
+                "search": term_info['term'],
+                "page": page,
+                "per-page": per_page,
+                "select": fields
+            }
+            result = self._make_request_ALEX(base_url, params)
+            if not result:
+                #print(f"No result for term: {term_info['term']} on page {page}")
+                break
+            works = result.get("results", [])
+            if not works:
+                # No more results available.
+                break
+
+            for work in works:
+                if not work:
+                    continue
+                abstract_inverted = work.get("abstract_inverted_index")
+                abstract = self.decode_inverted_index(abstract_inverted)
+                if not abstract or not (isinstance(abstract, str) and len(abstract) >= 15):
+                    continue  # Skip if abstract is missing or too short
+
+                # Build source info for tracking.
+                source_info = {
+                    "search_term": term_info['term'],
+                    "search_type": term_info.get("type", "N/A"),
+                    "api_type":"OPENALEX"
                 }
-                result = self._make_request_ALEX(base_url, params)
-                if not result:
-                    #print(f"No result for term: {term_info['term']} on page {page}")
-                    break
-                works = result.get("results", [])
-                if not works:
-                    # No more results available
-                    break
+                # Extract basic fields from OpenAlex.
+                title = work.get("display_name", "N/A")
+                year = work.get("publication_year", "N/A")
+                citation_count = work.get("cited_by_count", 0)
+                # Extract authors from the authorships list.
+                authors_list = work.get("authorships", [])
+                authors = []
+                for auth in authors_list:
+                    author = auth.get("author", {})
+                    if "display_name" in author:
+                        authors.append(author["display_name"])
+                # References: convert each reference id to a full link.
+                ref_ids = work.get("referenced_works", [])
+                references = [f"https://openalex.org/{ref}" for ref in ref_ids if ref]
+                # Get citations (list of citing paper id-links) via an extra request.
+                work_id = work.get("id", "")
+                citations = self.get_citations(work_id) if work_id else []
 
-                for work in works:
-                    if not work:
-                        continue
-                    abstract_inverted = work.get("abstract_inverted_index")
-                    abstract = self.decode_inverted_index(abstract_inverted)
-                    if not abstract or not (isinstance(abstract, str) and len(abstract) >= 15):
-                        continue  # Skip if abstract is missing or too short
-
-                    # Build source info for tracking
-                    source_info = {
-                        "search_term": term_info['term'],
-                        "search_type": term_info.get("type", "N/A")
+                paper_info = {
+                    "source_info": source_info,
+                    "paper_info": {
+                        "title": title,
+                        "abstract": abstract,
+                        "year": year,
+                        "citation_count": citation_count,
+                        "authors": authors,
+                        "references": references,
+                        "citations": citations
                     }
-                    # Extract basic fields from OpenAlex
-                    title = work.get("display_name", "N/A")
-                    year = work.get("publication_year", "N/A")
-                    citation_count = work.get("cited_by_count", 0)
-                    # Extract authors from the authorships list
-                    authors_list = work.get("authorships", [])
-                    authors = []
-                    for auth in authors_list:
-                        author = auth.get("author", {})
-                        if "display_name" in author:
-                            authors.append(author["display_name"])
-                    # References: these are provided as a list of OpenAlex IDs
-                    references = work.get("referenced_works", [])
+                }
+                valid_papers.append(paper_info)
+                if len(valid_papers) >= desired_papers:
+                    break
 
-                    # Get citations (list of citing paper titles) via an extra request.
-                    # Note: This extra request is made per paper.
-                    work_id = work.get("id", "")
-                    citations = self.get_citations(work_id) if work_id else []
+            #print(f"Term '{term_info['term']}' page {page} processed: {len(valid_papers)} valid papers collected so far.")
+            page += 1
+            time.sleep(1)  # Be polite to the API.
+        #print(f"Found {len(valid_papers)} valid papers for term: {term_info['term']}")
+        return valid_papers
 
-                    paper_info = {
-                        "source_info": source_info,
-                        "paper_info": {
-                            "title": title,
-                            "abstract": abstract,
-                            "year": year,
-                            "citation_count": citation_count,
-                            "authors": authors,
-                            "references": references,
-                            "citations": citations
-                        }
-                    }
-                    valid_papers.append(paper_info)
-                    if len(valid_papers) >= desired_papers:
-                        break
-
-                #print(f"Term '{term_info['term']}' page {page} processed: {len(valid_papers)} valid papers collected so far.")
-                page += 1
-                time.sleep(1)  # Be polite to the API
-            #print(f"Found {len(valid_papers)} valid papers for term: {term_info['term']}")
-            return valid_papers
-
-        all_valid_papers = []
-        # Use ThreadPoolExecutor to run the term searches in parallel.
-        with ThreadPoolExecutor(max_workers=len(search_terms)) as executor:
-            futures = {executor.submit(search_single_term, term): term for term in search_terms}
-            for future in as_completed(futures):
-                term = futures[future]
-                try:
-                    papers = future.result()
-                    all_valid_papers.extend(papers)
-                except Exception as e:
-                    print(f"Error processing term {term.get('term', 'unknown')}: {e}")
-        return all_valid_papers
+     all_valid_papers = []
+     with ThreadPoolExecutor(max_workers=len(search_terms)) as executor:
+        futures = {executor.submit(search_single_term, term): term for term in search_terms}
+        for future in as_completed(futures):
+            term = futures[future]
+            try:
+                papers = future.result()
+                all_valid_papers.extend(papers)
+            except Exception as e:
+                print(f"Error processing term {term.get('term', 'unknown')}: {e}")
+     return all_valid_papers
         

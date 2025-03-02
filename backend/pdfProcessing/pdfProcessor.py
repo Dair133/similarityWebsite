@@ -393,26 +393,21 @@ class PDFProcessor:
         }
         
 
-
-    def _clean_value(self, value: str) -> str:
-     """
-    Helper method to clean values by removing brackets and semicolons.
-    
-    Args:
-        value (str): The raw value from the Haiku output
+    def remove_duplicates(self, papers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        seen_titles = set()
+        unique_papers = []
         
-    Returns:
-        str: The cleaned value
-    """
-     # Remove square brackets
-     if value.startswith('[') and ']' in value:
-        value = value[1:value.rfind(']')]
-    
-    # Remove trailing semicolon
-     if value.endswith(';'):
-        value = value[:-1]
+        for paper in papers:
+            title = paper.get('title', '').strip().lower()
+            if title and title not in seen_titles:
+                seen_titles.add(title)
+                unique_papers.append(paper)
         
-     return value.strip()
+        return unique_papers
+ 
+ 
+ 
+ 
   
     
     
