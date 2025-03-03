@@ -30,13 +30,13 @@ function ParentDashboard() {
 
   return (
     <div style={styles.container}>
-        <UploadPDF onResultsUpdate={handleResultsUpdate} />
-        { /* Conditionally render either ListResults or NodeGraph */}
-      {showGraph ? (
-        <NodeGraph results={results} toggleGraphView={toggleGraphView} />
+         {showGraph ? (
+           <UploadPDF onResultsUpdate={handleResultsUpdate} toggleGraphView={toggleGraphView} />
       ) : (
-        <ListResults results={results} toggleGraphView={toggleGraphView} setParentResults={handleResultsUpdate}/>
+        <NodeGraph results={results} toggleGraphView={toggleGraphView} />
       )}
+        { /* Conditionally render either ListResults or NodeGraph */}
+        <ListResults results={results} toggleGraphView={toggleGraphView} setParentResults={handleResultsUpdate}/>
     </div>
   );
 }

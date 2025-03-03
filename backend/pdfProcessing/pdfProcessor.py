@@ -13,9 +13,6 @@ from flask import Blueprint
 from dotenv import load_dotenv
 import os
 from sklearn.metrics.pairwise import cosine_similarity
-from google import genai
-from google.genai import types
-from openai import OpenAI
 
 
 class PDFProcessor:
@@ -152,33 +149,8 @@ class PDFProcessor:
         self.logger.error(f"Error communicating with Claude: {str(e)}")
         raise
     
-    def ask_gemini(self,api_key):
-        client = genai.Client(api_key=api_key)
-        response = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=["Explain how AI works"],
-        config=types.GenerateContentConfig(
-        max_output_tokens=500,
-        temperature=0.1
-    )
-)
-        print(response.text)
-        
-        
-        
-    def ask_deepseek(self,api_key:str):
-        client = OpenAI(api_key=api_key, base_url="https://api.deepseek.com")
 
-        response = client.chat.completions.create(
-        model="deepseek-chat",
-        messages=[
-        {"role": "system", "content": "You are a helpful assistant"},
-        {"role": "user", "content": "Hello, please explain ai to me"},
-    ],
-        stream=False
-)
 
-        print(response.choices[0].message.content)
     
     def search_word_context(pdf_path, search_word, context_length=150):
     # Open the PDF file in read-binary mode

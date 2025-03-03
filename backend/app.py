@@ -137,11 +137,14 @@ similarity_root = current_dir.parent
 env_path = similarity_root / '.env.txt'
 
 upload_bp = Blueprint('upload', __name__)
+print('env path is')
+print(env_path)
 load_dotenv(env_path)  # Load environment variables from .en
 api_key_gemini = os.getenv('GEMINI_API_KEY')
 api_key_semantic = os.getenv('SEMANTIC_API_KEY')
 api_key_claude = os.getenv('HAIKU_API_KEY')
 api_key_deepseek = os.getenv('DEEPSEEK_API_KEY')
+print(api_key_claude)
 upload_bp = Blueprint('upload', __name__)
 # Create an upload folder for temporary file storage
 UPLOAD_FOLDER = 'uploads'
@@ -310,7 +313,7 @@ def process_pdf_route():
                 print(search_terms)
                 papersReturnedThroughSearch = semanticScholar.search_papers_parallel(search_terms, api_key_semantic)
                 
-                openAlexPapers = semanticScholar.search_papers_parallel_ALEX(search_terms,desired_papers=100)
+                openAlexPapers = semanticScholar.search_papers_parallel_ALEX(search_terms,desired_papers=1)
                 papersReturnedThroughSearch.extend(openAlexPapers)
                 endTime = time.time()
                 print(f"Time taken for searching using core techniques: {endTime - startTime} seconds")          
@@ -362,9 +365,9 @@ def process_pdf_route():
                 print("Comparing papers...")
                 relativelySimilarPapers = processor.remove_duplicates(papersReturnedThroughSearch)
                 similarityResults = compare_papers(seedPaper, papersReturnedThroughSearch)
-                papersReturnedThroughSearch.extend(poisonPillPapers)
-                papersReturnedThroughSearch.extend(poisonPillPapers)
-                papersReturnedThroughSearch.extend(poisonPillPapers)
+                #papersReturnedThroughSearch.extend(poisonPillPapers)
+                #papersReturnedThroughSearch.extend(poisonPillPapers)
+                #papersReturnedThroughSearch.extend(poisonPillPapers)
                 endTime = time.time()
                 print(f"Time taken for comparison: {endTime - startTime} seconds")
 
@@ -395,11 +398,6 @@ def process_pdf_route():
                 result['test'] = similarityResults
                 finishingTime = time.time()
                 print(f"Entire function took: {finishingTime - entireFuncionTime} seconds")
-                 # Write the result to a file named after the seed paper
-                seed_paper_title = result['title'].replace(' ', '_')
-                output_filename = f"{seed_paper_title}_result.json"
-                with open(output_filename, 'w') as outfile:
-                    json.dump(result, outfile, indent=4)
                         
                 return jsonify(result), 200
                    
@@ -540,4 +538,5 @@ def compare_papers(seed_paper, papers_returned_through_search):
 
 if __name__ == '__main__':
     app = create_app()
-    app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=True)
+    app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=False)
+    #The below isn't needed as Gunicorn handles this.

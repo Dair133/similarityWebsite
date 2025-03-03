@@ -15,7 +15,7 @@ function ListResults({ results, toggleGraphView, setParentResults }) {
   // Inline styling for the component
   const styles = {
     container: {
-      width: '50%',
+      width: '25%',
       height:'95vh',
       backgroundColor: 'yellow',
       padding: '2%',

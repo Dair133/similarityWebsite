@@ -1,0 +1,20 @@
+gunicorn
+flask
+flask-cors
+python-dotenv
+werkzeug
+numpy
+torch
+pandas
+scikit-learn
+tqdm
+transformers
+anthropic
+PyPDF2
+pdfplumber
+requests
+regex
+google-generativeai
+openai
+optuna
+typing-extensions  #Often needed for typing hints with older Python versions.  Good to include for broad compatibility.
