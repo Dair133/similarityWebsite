@@ -540,4 +540,5 @@ def compare_papers(seed_paper, papers_returned_through_search):
 
 if __name__ == '__main__':
     app = create_app()
-    app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=True)
+    # app.run(debug=True, host='0.0.0.0', port=5000, use_reloader=True)  <-- REMOVE THIS LINE
+    #The below isn't needed as Gunicorn handles this.
