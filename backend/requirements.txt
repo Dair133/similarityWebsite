@@ -16,4 +16,5 @@ requests
 regex
 google-generativeai
 openai
+optuna
 typing-extensions  #Often needed for typing hints with older Python versions.  Good to include for broad compatibility.
