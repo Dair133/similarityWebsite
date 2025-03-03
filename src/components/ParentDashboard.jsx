@@ -31,7 +31,7 @@ function ParentDashboard() {
   return (
     <div style={styles.container}>
          {showGraph ? (
-           <UploadPDF onResultsUpdate={handleResultsUpdate} />
+           <UploadPDF onResultsUpdate={handleResultsUpdate} toggleGraphView={toggleGraphView} />
       ) : (
         <NodeGraph results={results} toggleGraphView={toggleGraphView} />
       )}

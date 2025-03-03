@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import PDFViewer from './PDFViewer';
 
-function UploadPDF({ onResultsUpdate }) {
+function UploadPDF({ onResultsUpdate, toggleGraphView  }) {
   const [selectedFile, setSelectedFile] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [processing, setProcessing] = useState(false);
@@ -66,7 +66,7 @@ function UploadPDF({ onResultsUpdate }) {
 // Define all styles in a single object for clarity and reuse
 const styles = {
   container: {
-    width: '50%',
+    width: '75%',
     backgroundColor: 'red',
     height:'95vh',
     padding: '2rem',
@@ -107,6 +107,14 @@ const styles = {
     marginTop: '20px',
     width: '100%',
   },
+  button: {
+    padding: '8px 16px',
+    backgroundColor: '#4CAF50',
+    color: 'white',
+    border: 'none',
+    borderRadius: '4px',
+    cursor: 'pointer'
+},
 };
 
 
@@ -114,6 +122,9 @@ return (
   <div style={styles.container}>
     <div style={styles.innerBox}>
       <h2 style={styles.title}>Upload PDF</h2>
+      <button style={styles.button} onClick={toggleGraphView}>
+                    Switch to Node Graph View
+      </button>
       <input
         type="file"
         accept=".pdf"
