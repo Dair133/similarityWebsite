@@ -1,23 +1,21 @@
 import React, { useEffect, useState, useRef } from 'react'; // Import useRef
-import ForceGraph3D from 'react-force-graph-3d';
+import ForceGraph2D from 'react-force-graph-2d';
 import * as d3 from 'd3-force';
 
 function NodeGraph({ results, toggleGraphView }) {
     const [graphData, setGraphData] = useState({ nodes: [], links: [] });
-    const fgRef = useRef(null); // Create a ref for the ForceGraph3D instance
+    const fgRef = useRef(null); // Create a ref for the ForceGraph2D instance
 
     const styles = {
         container: {
-            width: '50%', // Consider making this responsive (see below)
-            backgroundColor: 'black', // Better for 3D
+            width: '50%', // Consider making this responsive
+            backgroundColor: 'white', // Better for 2D
             height: '95vh',  // Use vh units for viewport height
             padding: '2rem',
             boxSizing: 'border-box',
             overflow: 'hidden', // Prevent scrollbars on the container itself
         },
     };
-
-
 
     useEffect(() => {
         if (!results || !results.similarity_results) {
@@ -35,8 +33,7 @@ function NodeGraph({ results, toggleGraphView }) {
             val: 50,
             fx: 0,
             fy: 0,
-            fz: 0,
-            nodeOpacity:1
+            nodeOpacity: 1
         });
 
         results.similarity_results.forEach((paper) => {
@@ -56,25 +53,22 @@ function NodeGraph({ results, toggleGraphView }) {
 
     }, [results]);
 
-
     // useEffect for customizing the force simulation (link distance/strength)
     useEffect(() => {
         if (fgRef.current && graphData.nodes.length > 0) {
            const forceLink = fgRef.current.d3Force('link');
-            if (forceLink){ //Make sure forceLink is not null
+            if (forceLink) { //Make sure forceLink is not null
                 forceLink
                 .distance(link => 100 * (1 - link.similarity)) // Invert similarity
                 .strength(link => link.similarity * 2);
             }
-
         }
     }, [graphData]); // Run this effect when graphData changes
-
 
     return (
         <div style={styles.container}>
             <button onClick={toggleGraphView}>Swap</button>
-            <ForceGraph3D
+            <ForceGraph2D
                 ref={fgRef} // Attach the ref
                 graphData={graphData}
                 nodeLabel="name"
@@ -84,8 +78,9 @@ function NodeGraph({ results, toggleGraphView }) {
                 linkDirectionalArrowRelPos={1}
                 height={400} // Set a height! (or make it responsive)
                 width={600}  // Set a width! (or make it responsive)
-                backgroundColor="black" // Good for 3D
-                showNavInfo={false}
+                backgroundColor="white" // Better for 2D
+                nodeColor={() => '#1f77b4'} // Default node color
+                linkColor={() => '#999'} // Default link color
             />
         </div>
     );
