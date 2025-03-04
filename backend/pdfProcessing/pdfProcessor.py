@@ -13,7 +13,7 @@ from flask import Blueprint
 from dotenv import load_dotenv
 import os
 from sklearn.metrics.pairwise import cosine_similarity
-
+from werkzeug.utils import secure_filename
 
 class PDFProcessor:
     def __init__(self):
@@ -178,12 +178,13 @@ class PDFProcessor:
     
     
     
-    def _extract_text(self, pdf_path: str) -> str:
+    def _extract_text(self, pdf_path: str, maxLength: int) -> str:
         try:
             reader = PdfReader(pdf_path)
             text = ""
             for page in reader.pages:
                 text += page.extract_text() + "\n\n"
+                text = text[:8000]
             return text
         except Exception as e:
             self.logger.error(f"Error extracting text from PDF: {str(e)}")
@@ -376,6 +377,79 @@ class PDFProcessor:
                 unique_papers.append(paper)
         
         return unique_papers
+    
+    
+    
+    def form_result_struct(self, generalPaperInfo, paperSearchTermsAndTitle, is_semantic_scholar=True):
+     """
+    Forms the result structure based on paper information.
+    
+    Args:
+        generalPaperInfo (dict): Dictionary containing general paper information
+        paperSearchTermsAndTitle (dict): Dictionary containing search terms and title
+        is_semantic_scholar (bool): Flag indicating if data is from Semantic Scholar
+        
+    Returns:
+        dict: Structured result containing paper information
+    """
+     if is_semantic_scholar:
+        # Use Semantic Scholar data structure
+        result = {
+            'title': paperSearchTermsAndTitle['title'],
+            'paper_info': {  
+                'authors': generalPaperInfo['authors'],
+                'abstract': generalPaperInfo['abstract'],
+                'year': generalPaperInfo['year'],
+                'citation_count': generalPaperInfo['citation_count'],
+                'reference_count': generalPaperInfo['reference_count'],
+                'citations': generalPaperInfo['citations'],
+                'references': generalPaperInfo['references']
+            },
+            'abstract_info': {
+                'core_concepts': paperSearchTermsAndTitle['core_methodologies'],
+                'conceptual_angles': paperSearchTermsAndTitle['conceptual_angles'],
+                # 'random': paperSearchTermsAndTitle['random']  # Commented out in original
+            }
+        }
+     else:
+        # Use Haiku analysis data structure
+        result = {
+            'title': paperSearchTermsAndTitle['title'],
+            'paper_info': generalPaperInfo,  # Now directly use the parsed results
+            'abstract_info': {
+                'core_methodologies': paperSearchTermsAndTitle['core_methodologies'],
+                'related_methodologies': paperSearchTermsAndTitle['conceptual_angles'],
+            }
+        }
+    
+     return result
+    # Function validates that the json object returned from frontend contains a fileName
+    # and that the file is in fact a .pdf
+    def validate_pdf_upload(self,request):
+
+     if 'file' not in request.files:
+        raise ValueError('No file uploaded')
+    
+     file = request.files['file']
+     pdf_name = request.form.get('pdfPath')
+    
+     if file.filename == '':
+        raise ValueError('No selected file')
+        
+     if not file.filename.endswith('.pdf'):
+        raise ValueError('File must be a PDF')
+        
+     return file, pdf_name
+ 
+ 
+    def save_uploaded_pdf(self, file, upload_folder):
+     try:
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(upload_folder, filename)
+        file.save(filepath)
+        return filepath
+     except Exception as e:
+        raise IOError(f"Failed to save uploaded file: {str(e)}")
  
  
  

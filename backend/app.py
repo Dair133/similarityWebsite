@@ -9,7 +9,7 @@ import torch
 from werkzeug.utils import secure_filename
 # backend/app.py
 from pdfProcessing.pdfProcessor import PDFProcessor  # Note the lowercase 'p' in processor
-from pdfProcessing.semanticSearch import SemanticScholar
+from pdfProcessing.APISearch import APISearchClass
 
 # Import for model runners
 from modelFolder.modelRunners.standardModelRunner32k3 import ModelInference
@@ -153,36 +153,23 @@ if not os.path.exists(UPLOAD_FOLDER):
 
 @upload_bp.route('/process-pdf', methods=['POST'])
 def process_pdf_route():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file uploaded'}), 400
-    
-    file = request.files['file']
-    pdfName = request.form.get('pdfPath')
-    print(pdfName)
-    
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
-        
-    if not file.filename.endswith('.pdf'):
-        return jsonify({'error': 'File must be a PDF'}), 400
+    processor = PDFProcessor()
+    APISearch = APISearchClass()
+    cache = SearchTermCache()
+    metricsCalculator = MetricsCalculator()
+    localDatabaseManager = LocalDatabaseManager()
 
     try:
-        # Save the uploaded file temporarily
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
-        file.save(filepath)
-        # Initialize our processor
-        processor = PDFProcessor()
-        semanticScholar = SemanticScholar()
-        cache = SearchTermCache()
-        metricsCalculator = MetricsCalculator()
-        localDatabaseManager = LocalDatabaseManager()
+        # Save the file
+        file, pdfName = processor.validate_pdf_upload(request)
+        filepath = processor.save_uploaded_pdf(file, UPLOAD_FOLDER)
+
+
         # Will probably have to change to more generic 'extractPdfInfo', one function extract all necessary info for pdf.
         entireFuncionTime = time.time()
-        try:
-                entirePDFText = processor._extract_text(filepath)
-                if len(entirePDFText) > 10024:
-                    entirePDFText = entirePDFText[:8000]
+        try:    
+                # 8000 here is an arbriatary max length which is designed to give haiku enough info to fomr a suitable abstract
+                entirePDFText = processor._extract_text(filepath, 8000)
                 
                 cacheResult = cache.cacheCheck(pdfName)
                 if cacheResult:
@@ -198,57 +185,31 @@ def process_pdf_route():
                     paperSearchTermsAndTitle = processor.parse_paper_info(pdfInfo)
                     cache.addPaperCache(pdfName,paperSearchTermsAndTitle)
                 
-                # Try Semantic Scholar first
                 startTime = time.time()
                 print('The title is',paperSearchTermsAndTitle['title'])
                 # General paper info holds the papers general infomration such as title, refs, cites , authors, etc
                 # If this cannot be gotten by semantic scholar below then its gotten by Haiku
-                generalPaperInfo = semanticScholar.return_info_by_title(paperSearchTermsAndTitle['title'], 
-                                                                              api_key_semantic)
+                generalPaperInfo = APISearch.return_info_by_title(paperSearchTermsAndTitle['title'], api_key_semantic)
                 endTime = time.time()
                 print(f"Time taken for semantic scholar search: {endTime - startTime} seconds")
                 
                 
                 if generalPaperInfo:
-                    print("Using Semantic Scholar data")
+                 print("Using Semantic Scholar data")
                     # Use Semantic Scholar data if available
-                    result = {
-                        'title': paperSearchTermsAndTitle['title'],
-                        'paper_info': {  
-                            'authors': generalPaperInfo['authors'],
-                            'abstract': generalPaperInfo['abstract'],
-                            'year': generalPaperInfo['year'],
-                            'citation_count': generalPaperInfo['citation_count'],
-                            'reference_count': generalPaperInfo['reference_count'],
-                            'citations': generalPaperInfo['citations'],
-                            'references': generalPaperInfo['references']
-                        },
-                        'abstract_info': {
-                            'core_concepts': paperSearchTermsAndTitle['core_methodologies'],
-                            'conceptual_angles':paperSearchTermsAndTitle['conceptual_angles'],
-                            #'random':paperSearchTermsAndTitle['random']
-                        }
-                    }
+                 result = processor.form_result_struct(generalPaperInfo, paperSearchTermsAndTitle, is_semantic_scholar=True)
                 else:
-                    print("No semantic scholar data")
-                    # If no Semantic Scholar data, use Haiku analysis
-                    entirePDFText = processor._extract_text(filepath)  # Get full text again if needed
-                    
-                   
-                    generalPaperInfo = processor.ask_claude(pdfText=entirePDFText, 
-                                                       systemInstructions=claudeInstruction_extractAllInfo, 
-                                                       api_key=api_key_claude)
-                    print(generalPaperInfo.content[0].text)
-                    generalPaperInfo = processor.parse_haiku_output(generalPaperInfo.content[0].text)
-                    
-                    result = {
-                    'title': paperSearchTermsAndTitle['title'],
-                    'paper_info': generalPaperInfo,  # Now directly use the parsed results
-                    'abstract_info': {
-                    'core_methodologies': paperSearchTermsAndTitle['core_methodologies'],
-                    'related_methodologies': paperSearchTermsAndTitle['conceptual_angles'],
-                        }
-                    }
+                  print("No semantic scholar data")
+                # If no Semantic Scholar data, use Haiku analysis
+                  entirePDFText = processor._extract_text(filepath)  # Get full text again if needed
+    
+                  generalPaperInfo = processor.ask_claude(pdfText=entirePDFText, 
+                                      systemInstructions=claudeInstruction_extractAllInfo, 
+                                      api_key=api_key_claude)
+                  print(generalPaperInfo.content[0].text)
+                  generalPaperInfo = processor.parse_haiku_output(generalPaperInfo.content[0].text)
+     
+                  result = processor.form_result_struct(generalPaperInfo, paperSearchTermsAndTitle, is_semantic_scholar=False)
                     
                 seed_abstract = generalPaperInfo['abstract']
                 seed_embedding = metricsCalculator.get_scibert_embedding(seed_abstract, tokenizer, model)
@@ -272,48 +233,19 @@ def process_pdf_route():
                 # if 3 concepts than 15 papers
                 # We store 'search_type' so we can indicate to the user what type of search was done to get this paper
                 startTime = time.time()
-                semanticScholar = SemanticScholar()
-                cache = SearchTermCache()
                 search_terms = []
                  # Add core methodologies with high weight since they're specific
-                if 'core_methodologies' in paperSearchTermsAndTitle and paperSearchTermsAndTitle['core_methodologies']:
-                 for methodology in paperSearchTermsAndTitle['core_methodologies']:
-                   search_terms.append({
-                    'term': methodology,
-                    'type': 'core_methodology',
-                    'weight': 1.0 # High weight for specific methodologies
-                })
-                   
-                if 'conceptual_angles' in paperSearchTermsAndTitle and paperSearchTermsAndTitle['conceptual_angles']:
-                 for conceptualAngle in paperSearchTermsAndTitle['conceptual_angles']:
-                   search_terms.append({
-                    'term': conceptualAngle,
-                    'type': 'conceptual_angles',
-                    'weight': 1.0 # High weight for specific methodologies
-                })
-                   
-                if 'random' in paperSearchTermsAndTitle and paperSearchTermsAndTitle['random']:
-                 for randomSubject in paperSearchTermsAndTitle['random']:
-                   search_terms.append({
-                    'term': randomSubject,
-                    'type': 'random',
-                    'weight': 1.0 # High weight for specific methodologies
-                })
-                if len(seedAuthorList) > 0:
-                 for author in parsedSeedAuthorList:
-                    search_terms.append({
-                    'term':author,
-                    'type':'author',
-                    'weight':1.0
-                })
+                 
+                 
+                # Replace the original search terms preparation block with:
+                search_terms = APISearch.prepare_search_terms(paperSearchTermsAndTitle, parsedSeedAuthorList)
 
                 # Do all searches in parallel
                 startTime = time.time()
                 print('search terms are')
                 print(search_terms)
-                papersReturnedThroughSearch = semanticScholar.search_papers_parallel(search_terms, api_key_semantic)
-                
-                openAlexPapers = semanticScholar.search_papers_parallel_ALEX(search_terms,desired_papers=1)
+                papersReturnedThroughSearch = APISearch.search_papers_parallel(search_terms, api_key_semantic)
+                openAlexPapers = APISearch.search_papers_parallel_ALEX(search_terms,desired_papers=1)
                 papersReturnedThroughSearch.extend(openAlexPapers)
                 endTime = time.time()
                 print(f"Time taken for searching using core techniques: {endTime - startTime} seconds")          
@@ -336,31 +268,13 @@ def process_pdf_route():
                 
                 startTime = time.time()
                 print("Calculating shared attributes...")
-
-                for paper in papersReturnedThroughSearch:
-                    referenceList = paper['paper_info'].get('references', [])
-                    citationList = paper['paper_info'].get('citations', [])
-                    authorList = paper['paper_info'].get('authors', [])
-    
-                    sharedReferenceCount = metricsCalculator.compareAttribute(parsedSeedReferenceList, referenceList)
-                    sharedCitationCount = metricsCalculator.compareAttribute(parsedSeedCitationList, citationList)
-                    # And later when comparing
-                    authorList = paper['paper_info'].get('authors', [])
-                    if isinstance(authorList, list):
-                        authorList = ', '.join(authorList)  # Convert to string first if it's a list
-                    sharedAuthorCount = metricsCalculator.compareAttribute(parsedSeedAuthorList, authorList)
-    
-                    if 'comparison_metrics' not in paper:
-                        paper['comparison_metrics'] = {}
-    
-                    paper['comparison_metrics']['shared_reference_count'] = sharedReferenceCount
-                    paper['comparison_metrics']['shared_citation_count'] = sharedCitationCount
-                    paper['comparison_metrics']['shared_author_count'] = sharedAuthorCount
-
-
-
-
-
+                # This funcition call get shared refs, cites and authors for all papers
+                papersReturnedThroughSearch = metricsCalculator.calculate_shared_attributes(
+                    papersReturnedThroughSearch,
+                    parsedSeedReferenceList,
+                    parsedSeedCitationList, 
+                    parsedSeedAuthorList,
+                )   
 
                 print("Comparing papers...")
                 relativelySimilarPapers = processor.remove_duplicates(papersReturnedThroughSearch)
