@@ -9,7 +9,7 @@ import torch
 from werkzeug.utils import secure_filename
 # backend/app.py
 from pdfProcessing.pdfProcessor import PDFProcessor  # Note the lowercase 'p' in processor
-from APISearchPapers import APISearchPapersClass
+
 
 # Import for model runners
 from modelFolder.modelRunners.standardModelRunner32k3 import ModelInference
@@ -32,13 +32,14 @@ import os
 from torch.nn.functional import cosine_similarity
 from transformers import AutoTokenizer, AutoModel
 from concurrent.futures import ThreadPoolExecutor
-from APISearchPapers import APISearchPapersClass
-from APILargeLanguageModels import APILargeLanguageModelsClass
+from APIManagement.APISearchPapers import APISearchPapersClass
+from APIManagement.APILargeLanguageModels import APILargeLanguageModelsClass
+from APIManagement.APIPersonalPC import APIPersonalPCClass
 class APIManagerClass:
     def __init__(self):
         self.processor = PDFProcessor()
         self.cache = SearchTermCache()
-        self.APISearch = APISearchPapersClass()
+        self.personalPCClass = APIPersonalPCClass()
         self.searchPapersAPI = APISearchPapersClass()
         self.promptManager = PromptManager('prompts/prompts.json')
         self.largeLanguageModelsAPI = APILargeLanguageModelsClass()
@@ -74,7 +75,7 @@ class APIManagerClass:
                 print('The title is',paperSearchTermsAndTitle['title'])
                 # General paper info holds the papers general infomration such as title, refs, cites , authors, etc
                 # If this cannot be gotten by semantic scholar below then its gotten by Haiku
-                generalPaperInfo = self.APISearch.return_info_by_title(paperSearchTermsAndTitle['title'], api_key_semantic)
+                generalPaperInfo = self.searchPapersAPI.return_info_by_title(paperSearchTermsAndTitle['title'], api_key_semantic)
                 return generalPaperInfo, paperSearchTermsAndTitle
             
             
@@ -113,4 +114,9 @@ class APIManagerClass:
         semanticScholarPapers.extend(openAlexPapers)
         
         return semanticScholarPapers
+    
+    
+    def external_scibert(self, text:str):
+        scibertEmbedding = self.personalPCClass.test_local_server(abstract_text = text, url="http://localhost:5000/embed")
+        return scibertEmbedding
         

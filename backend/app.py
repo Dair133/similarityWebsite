@@ -30,7 +30,7 @@ import os
 from torch.nn.functional import cosine_similarity
 from transformers import AutoTokenizer, AutoModel
 from concurrent.futures import ThreadPoolExecutor
-from APIManager import APIManagerClass
+from APIManagement.APIManager import APIManagerClass
 
 current_dir = Path(__file__).parent
 similarity_root = current_dir.parent
@@ -86,6 +86,12 @@ def process_pdf_route():
                 parsedSeedReferenceList, parsedSeedCitationList,  parsedSeedAuthorList = metricsCalculator.return_attributes_lists(generalPaperInfo)
                 
                 papersReturnedThroughSearch = apiManagerClass.return_found_papers(paperSearchTermsAndTitle,parsedSeedAuthorList, api_key_semantic)
+
+                # TEMPORARY to test external server
+                tempText = 'BIOLOGY IS AFUNDAMENTAL COMPONENT IN SCIENCE AS IS PHYSICS AND CHEMISTRY'
+                scibertEmbedding = apiManagerClass.external_scibert(tempText)
+                print(scibertEmbedding)
+
 
         
                 seedPaper = {

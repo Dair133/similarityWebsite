@@ -9,7 +9,6 @@ import torch
 from werkzeug.utils import secure_filename
 # backend/app.py
 from pdfProcessing.pdfProcessor import PDFProcessor  # Note the lowercase 'p' in processor
-from APISearchPapers import APISearchPapersClass
 
 # Import for model runners
 from modelFolder.modelRunners.standardModelRunner32k3 import ModelInference
@@ -32,16 +31,12 @@ import os
 from torch.nn.functional import cosine_similarity
 from transformers import AutoTokenizer, AutoModel
 from concurrent.futures import ThreadPoolExecutor
-from APISearchPapers import APISearchPapersClass
 import anthropic
 
 
 class APILargeLanguageModelsClass:
     def __init__(self):
         pass
-    
-    
-    
     def ask_claude(self,pdfText: str, systemInstructions: str, api_key: str) -> str:
         try:
             message = {
