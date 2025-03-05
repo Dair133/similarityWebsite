@@ -31,106 +31,7 @@ import os
 from torch.nn.functional import cosine_similarity
 from transformers import AutoTokenizer, AutoModel
 from concurrent.futures import ThreadPoolExecutor
-# Think of search paper string as seed
-claudeInstruction_extractTitleMethodInfo = """
-# Scientific Paper Analysis System
-
-You are a professional scientific literature analyst specializing in precise terminology extraction. Your extracted terms will be used directly in an automated academic search pipeline that feeds into a machine learning model. This pipeline searches Semantic Scholar using your extracted terms to find papers similar to a "seed paper," and these results are then evaluated by an ML model that assesses their similarity to the original paper.
-
-## Core Extraction Task
-Extract the exact paper title, identify 3 core methodologies, and create 3 conceptual angles that will yield effective literature search results. The quality of your extracted terms directly impacts the effectiveness of the entire ML pipeline.
-
-## Output Format (CRITICAL - MUST BE FOLLOWED EXACTLY)
-TITLE: [exact paper title];
-CORE_METHODOLOGIES: [method1, method2, method3];
-CONCEPTUAL_ANGLES: [angle1, angle2, angle3];
-
-## CORE_METHODOLOGIES Guidelines
-- Create exact search strings that would return the MOST SIMILAR papers to the source when searched on Semantic Scholar
-- Each methodology must combine a fundamental technique with precise scope-defining terms
-- The string should be specific enough that searching with it would NOT return papers from unrelated domains
-- For each term, ask: "Would this search term potentially return completely unrelated papers?" If yes, make it more specific
-- Avoid overly general terms like "neural networks" or "optimization" without proper qualification
-- These terms must identify papers that use highly similar approaches to the seed paper
-
-## CONCEPTUAL_ANGLES Guidelines
-- Create search strings that would return papers with a SLIGHT CONCEPTUAL SLANT from the source
-- These should capture related approaches that explore the same problem from different angles
-- Each angle should maintain relevance to the core topic while introducing a novel perspective
-- Strike a careful balance between similarity and novelty - too similar will duplicate core methodologies, too different will return irrelevant papers
-- The ML model can distinguish broadly between similar and dissimilar papers, so these terms should find papers that are related but offer new insights
-
-## Examples of Effective Search Strings:
-CORE: "Siamese networks for document similarity" (returns highly similar papers)
-ANGLE: "Cross-modal embeddings for text retrieval" (returns papers with a related but different approach)
-
-## FORMAT WARNING (EXTREMELY IMPORTANT)
-The output format MUST be followed EXACTLY as specified. Any deviation will cause the entire ML pipeline to fail. This includes:
-- Using the exact section headers shown
-- Including the square brackets around each term
-- Using semicolons as separators exactly as shown
-- Not adding any extra characters, line breaks, or explanations
-- Providing exactly 3 items for each category
-
-This output is programmatically parsed and any formatting change will break the automated system.
-MOST IMPORTANT POINT, IS THAT YOU PICK OUT TERMS WHICH WILL NOT LARGE SETS OF TOTALLY DIFFFERENT UNRELATED PAPERS
-"""
-
-
-
-claudeInstruction_extractAllInfo = '''
-# Scientific Paper Analysis System
-
-You are an expert scientific literature analyzer specializing in extracting core information from academic papers. Your analysis is critical for an AI research pipeline that uses your extracted data to find similar papers through SciBERT embeddings when Semantic Scholar lacks complete information on a document.
-
-## Core Extraction Task
-Extract the paper's core information and generate a technical abstract specifically optimized for SciBERT embedding-based similarity matching.
-
-## Output Format (CRITICAL - MUST BE FOLLOWED EXACTLY)
-The output must follow this precise format with two main sections:
-
-SEMANTIC_SCHOLAR_INFO:
-TITLE: [exact paper title];
-AUTHORS: [comma-separated list of all authors, formatted as "Lastname, Firstname" or "Lastname, F."];
-YEAR: [publication year];
-ABSTRACT: [SciBERT-optimized technical abstract that precisely captures the paper's technical contributions, methodology, and findings];
-CITATIONS: [semicolon-separated list of papers that cite this work];
-REFERENCES: [semicolon-separated list of papers referenced by this work];
-
-
-## Extraction Guidelines
-For SEMANTIC_SCHOLAR_INFO section:
-- Extract the EXACT paper title
-- List ALL authors in order of appearance
-- GENERATE a SciBERT-optimized technical abstract that:
-  * Uses domain-specific scientific terminology consistent with the paper's field
-  * Emphasizes technical concepts, methodologies, algorithms, and contributions
-  * Includes precise technical terms that would appear in similar papers
-  * Contains specific technical metrics, evaluation methods, datasets, and quantitative results
-  * Maintains the paper's original technical vocabulary and naming conventions
-  * References established techniques, frameworks, or algorithms by their standard names
-  * Has sufficient technical density for accurate embedding representation
-  * Uses consistent technical terminology throughout for better embedding coherence
-  * Is approximately 200-300 words in length and technical in nature
-- If references or citations are listed in the paper, include their full titles
-- Format each citation and reference as a complete paper title
-
-
-
-## SciBERT Embedding Optimization Guidelines
-- SciBERT creates embeddings based on scientific terminology and structure
-- Effective abstract generation should match the scientific terminology of the paper's domain
-- Use standardized scientific language patterns that SciBERT would recognize from its training corpus
-- Structure the abstract with clear technical sections covering problem statement, methodology, and results
-- Include key technical phrases that would be shared across semantically similar papers
-- Avoid general or vague descriptions in favor of precise technical characterizations
-- Prioritize including technical content that distinguishes this paper from others in the field
-- Focus more on technical approach rather than general implications or background
-- Match the abstract's language style to published papers in the same field/venue
-
-## Format Warning
-Any deviation from the exact output format will cause the entire ML pipeline to fail. This output is programmatically parsed with strict expectations for section headers, brackets, delimiters, and structure.
-'''
+from FetchResultsManager import FetchResultsManagerClass
 
 current_dir = Path(__file__).parent
 similarity_root = current_dir.parent
@@ -158,6 +59,7 @@ def process_pdf_route():
     cache = SearchTermCache()
     metricsCalculator = MetricsCalculator()
     localDatabaseManager = LocalDatabaseManager()
+    fetchResultsManager = FetchResultsManagerClass()
 
     try:
         # Save the file
@@ -168,49 +70,20 @@ def process_pdf_route():
         # Will probably have to change to more generic 'extractPdfInfo', one function extract all necessary info for pdf.
         entireFuncionTime = time.time()
         try:    
-                # 8000 here is an arbriatary max length which is designed to give haiku enough info to fomr a suitable abstract
-                entirePDFText = processor._extract_text(filepath, 8000)
-                
-                cacheResult = cache.cacheCheck(pdfName)
-                if cacheResult:
-                    print('Document found in cache, no need to query Haiku!')
-                    paperSearchTermsAndTitle = cacheResult
-                else:
-                    print('Document not found in cache, asking Haiku')
-                    pfdInfo = processor.ask_claude(pdfText=entirePDFText, 
-                                                     systemInstructions=claudeInstruction_extractTitleMethodInfo,
-                                                     api_key=api_key_claude)
-                    pdfInfo = pfdInfo.content[0].text
-                    print(f"Extracted info: {pdfInfo}")
-                    paperSearchTermsAndTitle = processor.parse_paper_info(pdfInfo)
-                    cache.addPaperCache(pdfName,paperSearchTermsAndTitle)
-                
+
                 startTime = time.time()
-                print('The title is',paperSearchTermsAndTitle['title'])
-                # General paper info holds the papers general infomration such as title, refs, cites , authors, etc
-                # If this cannot be gotten by semantic scholar below then its gotten by Haiku
-                generalPaperInfo = APISearch.return_info_by_title(paperSearchTermsAndTitle['title'], api_key_semantic)
+                generalPaperInfo,paperSearchTermsAndTitle = fetchResultsManager.return_general_paper_info_from_semantic(filepath, pdfName)
                 endTime = time.time()
                 print(f"Time taken for semantic scholar search: {endTime - startTime} seconds")
                 
                 
                 if generalPaperInfo:
-                 print("Using Semantic Scholar data")
-                    # Use Semantic Scholar data if available
-                 result = processor.form_result_struct(generalPaperInfo, paperSearchTermsAndTitle, is_semantic_scholar=True)
+                    print("Using Semantic Scholar data")
+                    result = processor.form_result_struct(generalPaperInfo, paperSearchTermsAndTitle, is_semantic_scholar=True)
                 else:
-                  print("No semantic scholar data")
-                # If no Semantic Scholar data, use Haiku analysis
-                  entirePDFText = processor._extract_text(filepath)  # Get full text again if needed
-    
-                  generalPaperInfo = processor.ask_claude(pdfText=entirePDFText, 
-                                      systemInstructions=claudeInstruction_extractAllInfo, 
-                                      api_key=api_key_claude)
-                  print(generalPaperInfo.content[0].text)
-                  generalPaperInfo = processor.parse_haiku_output(generalPaperInfo.content[0].text)
-     
-                  result = processor.form_result_struct(generalPaperInfo, paperSearchTermsAndTitle, is_semantic_scholar=False)
-                    
+                    print('No Semantic Scholar data, getting ALL paper info from Haiku!')
+                    result = fetchResultsManager.return_general_paper_info_from_haiku(filepath,pdfName)
+                  
                 seed_abstract = generalPaperInfo['abstract']
                 seed_embedding = metricsCalculator.get_scibert_embedding(seed_abstract, tokenizer, model)
                 generalPaperInfo['scibert'] = seed_embedding.tolist()
