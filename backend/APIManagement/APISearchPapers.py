@@ -21,7 +21,7 @@ from typing import List, Dict
 import requests
 import time
 import re
-class SemanticScholar:
+class APISearchPapersClass:
     def __init__(self):
         self.max_workers = 5
         self.session = requests.Session()
@@ -166,6 +166,48 @@ class SemanticScholar:
         'references': references_str,
     }
      
+     # Appends the dearch terms to suitable data tructure for use by the api
+    def prepare_search_terms(self, paperSearchTermsAndTitle, parsedSeedAuthorList):
+     search_terms = []
+    
+    # Add core methodologies with high weight since they're specific
+     if 'core_methodologies' in paperSearchTermsAndTitle and paperSearchTermsAndTitle['core_methodologies']:
+        for methodology in paperSearchTermsAndTitle['core_methodologies']:
+            search_terms.append({
+                'term': methodology,
+                'type': 'core_methodology',
+                'weight': 1.0  # High weight for specific methodologies
+            })
+    
+    # Add conceptual angles   
+     if 'conceptual_angles' in paperSearchTermsAndTitle and paperSearchTermsAndTitle['conceptual_angles']:
+        for conceptualAngle in paperSearchTermsAndTitle['conceptual_angles']:
+            search_terms.append({
+                'term': conceptualAngle,
+                'type': 'conceptual_angles',
+                'weight': 1.0  # High weight for specific methodologies
+            })
+    
+    # Add random subjects if available
+     if 'random' in paperSearchTermsAndTitle and paperSearchTermsAndTitle['random']:
+        for randomSubject in paperSearchTermsAndTitle['random']:
+            search_terms.append({
+                'term': randomSubject,
+                'type': 'random',
+                'weight': 1.0  # High weight for specific methodologies
+            })
+    
+    # Add authors
+     if parsedSeedAuthorList and len(parsedSeedAuthorList) > 0:
+        for author in parsedSeedAuthorList:
+            search_terms.append({
+                'term': author,
+                'type': 'author',
+                'weight': 1.0
+            })
+            
+     return search_terms
+     
      
      # Searches semantic scholar based on string entered.
     def search_papers_on_string(self, query: str, num_results: int, api_key: str) -> List[Dict[str, Any]]:
@@ -270,12 +312,7 @@ class SemanticScholar:
      return {'data': []}
             
             
-    def search_papers_parallel(self, search_terms: List[Dict], api_key: str) -> List[Dict]:
-     """
-    Parallel search that tracks which terms found which papers
-    Returns papers with information about which search terms found them
-    Ensures all returned papers have valid abstracts
-     """
+    def search_papers_parallel_SEMANTIC(self, search_terms: List[Dict], api_key: str) -> List[Dict]:
      def search_single_term(term_info: Dict) -> List[Dict]:
          try:
             if not term_info or 'term' not in term_info:
@@ -620,4 +657,12 @@ class SemanticScholar:
             except Exception as e:
                 print(f"Error processing term {term.get('term', 'unknown')}: {e}")
      return all_valid_papers
+ 
+ 
+ 
+ 
+    # def return_found_papers(self,search_terms, api_key_semantic):
+    #     papersReturnedThroughSearch = self.search_papers_parallel(search_terms, api_key_semantic)
+    #     openAlexPapers = self.search_papers_parallel_ALEX(search_terms,desired_papers=1)
+    #     papersReturnedThroughSearch.extend(openAlexPapers)
         

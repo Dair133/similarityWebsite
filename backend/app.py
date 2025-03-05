@@ -9,7 +9,6 @@ import torch
 from werkzeug.utils import secure_filename
 # backend/app.py
 from pdfProcessing.pdfProcessor import PDFProcessor  # Note the lowercase 'p' in processor
-from pdfProcessing.semanticSearch import SemanticScholar
 
 # Import for model runners
 from modelFolder.modelRunners.standardModelRunner32k3 import ModelInference
@@ -31,106 +30,7 @@ import os
 from torch.nn.functional import cosine_similarity
 from transformers import AutoTokenizer, AutoModel
 from concurrent.futures import ThreadPoolExecutor
-# Think of search paper string as seed
-claudeInstruction_extractTitleMethodInfo = """
-# Scientific Paper Analysis System
-
-You are a professional scientific literature analyst specializing in precise terminology extraction. Your extracted terms will be used directly in an automated academic search pipeline that feeds into a machine learning model. This pipeline searches Semantic Scholar using your extracted terms to find papers similar to a "seed paper," and these results are then evaluated by an ML model that assesses their similarity to the original paper.
-
-## Core Extraction Task
-Extract the exact paper title, identify 3 core methodologies, and create 3 conceptual angles that will yield effective literature search results. The quality of your extracted terms directly impacts the effectiveness of the entire ML pipeline.
-
-## Output Format (CRITICAL - MUST BE FOLLOWED EXACTLY)
-TITLE: [exact paper title];
-CORE_METHODOLOGIES: [method1, method2, method3];
-CONCEPTUAL_ANGLES: [angle1, angle2, angle3];
-
-## CORE_METHODOLOGIES Guidelines
-- Create exact search strings that would return the MOST SIMILAR papers to the source when searched on Semantic Scholar
-- Each methodology must combine a fundamental technique with precise scope-defining terms
-- The string should be specific enough that searching with it would NOT return papers from unrelated domains
-- For each term, ask: "Would this search term potentially return completely unrelated papers?" If yes, make it more specific
-- Avoid overly general terms like "neural networks" or "optimization" without proper qualification
-- These terms must identify papers that use highly similar approaches to the seed paper
-
-## CONCEPTUAL_ANGLES Guidelines
-- Create search strings that would return papers with a SLIGHT CONCEPTUAL SLANT from the source
-- These should capture related approaches that explore the same problem from different angles
-- Each angle should maintain relevance to the core topic while introducing a novel perspective
-- Strike a careful balance between similarity and novelty - too similar will duplicate core methodologies, too different will return irrelevant papers
-- The ML model can distinguish broadly between similar and dissimilar papers, so these terms should find papers that are related but offer new insights
-
-## Examples of Effective Search Strings:
-CORE: "Siamese networks for document similarity" (returns highly similar papers)
-ANGLE: "Cross-modal embeddings for text retrieval" (returns papers with a related but different approach)
-
-## FORMAT WARNING (EXTREMELY IMPORTANT)
-The output format MUST be followed EXACTLY as specified. Any deviation will cause the entire ML pipeline to fail. This includes:
-- Using the exact section headers shown
-- Including the square brackets around each term
-- Using semicolons as separators exactly as shown
-- Not adding any extra characters, line breaks, or explanations
-- Providing exactly 3 items for each category
-
-This output is programmatically parsed and any formatting change will break the automated system.
-MOST IMPORTANT POINT, IS THAT YOU PICK OUT TERMS WHICH WILL NOT LARGE SETS OF TOTALLY DIFFFERENT UNRELATED PAPERS
-"""
-
-
-
-claudeInstruction_extractAllInfo = '''
-# Scientific Paper Analysis System
-
-You are an expert scientific literature analyzer specializing in extracting core information from academic papers. Your analysis is critical for an AI research pipeline that uses your extracted data to find similar papers through SciBERT embeddings when Semantic Scholar lacks complete information on a document.
-
-## Core Extraction Task
-Extract the paper's core information and generate a technical abstract specifically optimized for SciBERT embedding-based similarity matching.
-
-## Output Format (CRITICAL - MUST BE FOLLOWED EXACTLY)
-The output must follow this precise format with two main sections:
-
-SEMANTIC_SCHOLAR_INFO:
-TITLE: [exact paper title];
-AUTHORS: [comma-separated list of all authors, formatted as "Lastname, Firstname" or "Lastname, F."];
-YEAR: [publication year];
-ABSTRACT: [SciBERT-optimized technical abstract that precisely captures the paper's technical contributions, methodology, and findings];
-CITATIONS: [semicolon-separated list of papers that cite this work];
-REFERENCES: [semicolon-separated list of papers referenced by this work];
-
-
-## Extraction Guidelines
-For SEMANTIC_SCHOLAR_INFO section:
-- Extract the EXACT paper title
-- List ALL authors in order of appearance
-- GENERATE a SciBERT-optimized technical abstract that:
-  * Uses domain-specific scientific terminology consistent with the paper's field
-  * Emphasizes technical concepts, methodologies, algorithms, and contributions
-  * Includes precise technical terms that would appear in similar papers
-  * Contains specific technical metrics, evaluation methods, datasets, and quantitative results
-  * Maintains the paper's original technical vocabulary and naming conventions
-  * References established techniques, frameworks, or algorithms by their standard names
-  * Has sufficient technical density for accurate embedding representation
-  * Uses consistent technical terminology throughout for better embedding coherence
-  * Is approximately 200-300 words in length and technical in nature
-- If references or citations are listed in the paper, include their full titles
-- Format each citation and reference as a complete paper title
-
-
-
-## SciBERT Embedding Optimization Guidelines
-- SciBERT creates embeddings based on scientific terminology and structure
-- Effective abstract generation should match the scientific terminology of the paper's domain
-- Use standardized scientific language patterns that SciBERT would recognize from its training corpus
-- Structure the abstract with clear technical sections covering problem statement, methodology, and results
-- Include key technical phrases that would be shared across semantically similar papers
-- Avoid general or vague descriptions in favor of precise technical characterizations
-- Prioritize including technical content that distinguishes this paper from others in the field
-- Focus more on technical approach rather than general implications or background
-- Match the abstract's language style to published papers in the same field/venue
-
-## Format Warning
-Any deviation from the exact output format will cause the entire ML pipeline to fail. This output is programmatically parsed with strict expectations for section headers, brackets, delimiters, and structure.
-'''
+from APIManagement.APIManager import APIManagerClass
 
 current_dir = Path(__file__).parent
 similarity_root = current_dir.parent
@@ -153,170 +53,45 @@ if not os.path.exists(UPLOAD_FOLDER):
 
 @upload_bp.route('/process-pdf', methods=['POST'])
 def process_pdf_route():
-    if 'file' not in request.files:
-        return jsonify({'error': 'No file uploaded'}), 400
-    
-    file = request.files['file']
-    pdfName = request.form.get('pdfPath')
-    print(pdfName)
-    
-    if file.filename == '':
-        return jsonify({'error': 'No selected file'}), 400
-        
-    if not file.filename.endswith('.pdf'):
-        return jsonify({'error': 'File must be a PDF'}), 400
+    processor = PDFProcessor()
+    metricsCalculator = MetricsCalculator()
+    localDatabaseManager = LocalDatabaseManager()
+    apiManagerClass = APIManagerClass()
 
     try:
-        # Save the uploaded file temporarily
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(UPLOAD_FOLDER, filename)
-        file.save(filepath)
-        # Initialize our processor
-        processor = PDFProcessor()
-        semanticScholar = SemanticScholar()
-        cache = SearchTermCache()
-        metricsCalculator = MetricsCalculator()
-        localDatabaseManager = LocalDatabaseManager()
+        # Save the file
+        file, pdfName = processor.validate_pdf_upload(request)
+        filepath = processor.save_uploaded_pdf(file, UPLOAD_FOLDER)
+
+
         # Will probably have to change to more generic 'extractPdfInfo', one function extract all necessary info for pdf.
         entireFuncionTime = time.time()
-        try:
-                entirePDFText = processor._extract_text(filepath)
-                if len(entirePDFText) > 10024:
-                    entirePDFText = entirePDFText[:8000]
-                
-                cacheResult = cache.cacheCheck(pdfName)
-                if cacheResult:
-                    print('Document found in cache, no need to query Haiku!')
-                    paperSearchTermsAndTitle = cacheResult
-                else:
-                    print('Document not found in cache, asking Haiku')
-                    pfdInfo = processor.ask_claude(pdfText=entirePDFText, 
-                                                     systemInstructions=claudeInstruction_extractTitleMethodInfo,
-                                                     api_key=api_key_claude)
-                    pdfInfo = pfdInfo.content[0].text
-                    print(f"Extracted info: {pdfInfo}")
-                    paperSearchTermsAndTitle = processor.parse_paper_info(pdfInfo)
-                    cache.addPaperCache(pdfName,paperSearchTermsAndTitle)
-                
-                # Try Semantic Scholar first
+        try:    
+
                 startTime = time.time()
-                print('The title is',paperSearchTermsAndTitle['title'])
-                # General paper info holds the papers general infomration such as title, refs, cites , authors, etc
-                # If this cannot be gotten by semantic scholar below then its gotten by Haiku
-                generalPaperInfo = semanticScholar.return_info_by_title(paperSearchTermsAndTitle['title'], 
-                                                                              api_key_semantic)
+                generalPaperInfo,paperSearchTermsAndTitle = apiManagerClass.return_general_paper_info_from_semantic(filepath, pdfName, api_key_semantic, api_key_claude)
                 endTime = time.time()
-                print(f"Time taken for semantic scholar search: {endTime - startTime} seconds")
+                print(f"Time taken for semantic scholar search of seed paper: {endTime - startTime} seconds")
                 
                 
                 if generalPaperInfo:
                     print("Using Semantic Scholar data")
-                    # Use Semantic Scholar data if available
-                    result = {
-                        'title': paperSearchTermsAndTitle['title'],
-                        'paper_info': {  
-                            'authors': generalPaperInfo['authors'],
-                            'abstract': generalPaperInfo['abstract'],
-                            'year': generalPaperInfo['year'],
-                            'citation_count': generalPaperInfo['citation_count'],
-                            'reference_count': generalPaperInfo['reference_count'],
-                            'citations': generalPaperInfo['citations'],
-                            'references': generalPaperInfo['references']
-                        },
-                        'abstract_info': {
-                            'core_concepts': paperSearchTermsAndTitle['core_methodologies'],
-                            'conceptual_angles':paperSearchTermsAndTitle['conceptual_angles'],
-                            #'random':paperSearchTermsAndTitle['random']
-                        }
-                    }
+                    result = processor.form_result_struct(generalPaperInfo, paperSearchTermsAndTitle, is_semantic_scholar=True)
                 else:
-                    print("No semantic scholar data")
-                    # If no Semantic Scholar data, use Haiku analysis
-                    entirePDFText = processor._extract_text(filepath)  # Get full text again if needed
-                    
-                   
-                    generalPaperInfo = processor.ask_claude(pdfText=entirePDFText, 
-                                                       systemInstructions=claudeInstruction_extractAllInfo, 
-                                                       api_key=api_key_claude)
-                    print(generalPaperInfo.content[0].text)
-                    generalPaperInfo = processor.parse_haiku_output(generalPaperInfo.content[0].text)
-                    
-                    result = {
-                    'title': paperSearchTermsAndTitle['title'],
-                    'paper_info': generalPaperInfo,  # Now directly use the parsed results
-                    'abstract_info': {
-                    'core_methodologies': paperSearchTermsAndTitle['core_methodologies'],
-                    'related_methodologies': paperSearchTermsAndTitle['conceptual_angles'],
-                        }
-                    }
-                    
-                seed_abstract = generalPaperInfo['abstract']
-                seed_embedding = metricsCalculator.get_scibert_embedding(seed_abstract, tokenizer, model)
-                generalPaperInfo['scibert'] = seed_embedding.tolist()
+                    print('No Semantic Scholar data, getting ALL paper info from Haiku!')
+                    result = apiManagerClass.return_general_paper_info_from_haiku(filepath,pdfName)
+                  
+                generalPaperInfo['scibert'] = metricsCalculator.return_scibert_embeddings(generalPaperInfo, tokenizer, model)
+                # Returns the references citaitons and authors in a list, making themr eady to work with later on
+                parsedSeedReferenceList, parsedSeedCitationList,  parsedSeedAuthorList = metricsCalculator.return_attributes_lists(generalPaperInfo)
                 
-                # Here we will calculate shared references, citations and cosine
-                seedReferenceList = generalPaperInfo['references']
-                parsedSeedReferenceList = metricsCalculator.parse_attribute_list(seedReferenceList,';')
-                
-                seedCitationList = generalPaperInfo['citations']
-                parsedSeedCitationList = metricsCalculator.parse_attribute_list(seedCitationList,';')
-                
-                seedAuthorList = generalPaperInfo['authors']
-                if isinstance(seedAuthorList, list):
-                    seedAuthorList = ', '.join(seedAuthorList)
-                parsedSeedAuthorList = metricsCalculator.parse_attribute_list(seedAuthorList, ',')
-                papersReturnedThroughSearch = []
-                
-                # Now based on the abstract info extracted from the paper we should search semantic scholar for similar papers
-                # Loop below searches semantic scholar using each of the core concepts and returns 5 papers for each of those concepts
-                # if 3 concepts than 15 papers
-                # We store 'search_type' so we can indicate to the user what type of search was done to get this paper
-                startTime = time.time()
-                semanticScholar = SemanticScholar()
-                cache = SearchTermCache()
-                search_terms = []
-                 # Add core methodologies with high weight since they're specific
-                if 'core_methodologies' in paperSearchTermsAndTitle and paperSearchTermsAndTitle['core_methodologies']:
-                 for methodology in paperSearchTermsAndTitle['core_methodologies']:
-                   search_terms.append({
-                    'term': methodology,
-                    'type': 'core_methodology',
-                    'weight': 1.0 # High weight for specific methodologies
-                })
-                   
-                if 'conceptual_angles' in paperSearchTermsAndTitle and paperSearchTermsAndTitle['conceptual_angles']:
-                 for conceptualAngle in paperSearchTermsAndTitle['conceptual_angles']:
-                   search_terms.append({
-                    'term': conceptualAngle,
-                    'type': 'conceptual_angles',
-                    'weight': 1.0 # High weight for specific methodologies
-                })
-                   
-                if 'random' in paperSearchTermsAndTitle and paperSearchTermsAndTitle['random']:
-                 for randomSubject in paperSearchTermsAndTitle['random']:
-                   search_terms.append({
-                    'term': randomSubject,
-                    'type': 'random',
-                    'weight': 1.0 # High weight for specific methodologies
-                })
-                if len(seedAuthorList) > 0:
-                 for author in parsedSeedAuthorList:
-                    search_terms.append({
-                    'term':author,
-                    'type':'author',
-                    'weight':1.0
-                })
+                papersReturnedThroughSearch = apiManagerClass.return_found_papers(paperSearchTermsAndTitle,parsedSeedAuthorList, api_key_semantic)
 
-                # Do all searches in parallel
-                startTime = time.time()
-                print('search terms are')
-                print(search_terms)
-                papersReturnedThroughSearch = semanticScholar.search_papers_parallel(search_terms, api_key_semantic)
-                
-                openAlexPapers = semanticScholar.search_papers_parallel_ALEX(search_terms,desired_papers=1)
-                papersReturnedThroughSearch.extend(openAlexPapers)
-                endTime = time.time()
-                print(f"Time taken for searching using core techniques: {endTime - startTime} seconds")          
+                # TEMPORARY to test external server
+                tempText = 'BIOLOGY IS AFUNDAMENTAL COMPONENT IN SCIENCE AS IS PHYSICS AND CHEMISTRY'
+                scibertEmbedding = apiManagerClass.external_scibert(tempText)
+                print(scibertEmbedding)
+
 
         
                 seedPaper = {
@@ -324,50 +99,17 @@ def process_pdf_route():
                     'paper_info': generalPaperInfo
                 }
                                 
-                # WORK HERE CLAUDE
-                # Now we should append poison pill papers from the excel
-                poisonPillPapers = localDatabaseManager.load_poison_pill_papers("poison_pill_papers_With_SciBert.xlsx")
-                # Append poison pill papers to the search results
-                if poisonPillPapers and len(poisonPillPapers) > 0:
-                    print(f"Adding {len(poisonPillPapers)} poison pill papers to comparison set")
-                    papersReturnedThroughSearch.extend(poisonPillPapers)
-                else:
-                    print("No poison pill papers found or loaded")
+                papersReturnedThroughSearch = localDatabaseManager.load_poison_pill_papers(papersReturnedThroughSearch,"poison_pill_papers_With_SciBert.xlsx")
+ 
                 
                 startTime = time.time()
                 print("Calculating shared attributes...")
-
-                for paper in papersReturnedThroughSearch:
-                    referenceList = paper['paper_info'].get('references', [])
-                    citationList = paper['paper_info'].get('citations', [])
-                    authorList = paper['paper_info'].get('authors', [])
-    
-                    sharedReferenceCount = metricsCalculator.compareAttribute(parsedSeedReferenceList, referenceList)
-                    sharedCitationCount = metricsCalculator.compareAttribute(parsedSeedCitationList, citationList)
-                    # And later when comparing
-                    authorList = paper['paper_info'].get('authors', [])
-                    if isinstance(authorList, list):
-                        authorList = ', '.join(authorList)  # Convert to string first if it's a list
-                    sharedAuthorCount = metricsCalculator.compareAttribute(parsedSeedAuthorList, authorList)
-    
-                    if 'comparison_metrics' not in paper:
-                        paper['comparison_metrics'] = {}
-    
-                    paper['comparison_metrics']['shared_reference_count'] = sharedReferenceCount
-                    paper['comparison_metrics']['shared_citation_count'] = sharedCitationCount
-                    paper['comparison_metrics']['shared_author_count'] = sharedAuthorCount
-
-
-
-
-
+                # This funcition call get shared refs, cites and authors for all papers
+                papersReturnedThroughSearch = metricsCalculator.calculate_shared_attributes(papersReturnedThroughSearch,parsedSeedReferenceList,parsedSeedCitationList, parsedSeedAuthorList,)   
 
                 print("Comparing papers...")
                 relativelySimilarPapers = processor.remove_duplicates(papersReturnedThroughSearch)
                 similarityResults = compare_papers(seedPaper, papersReturnedThroughSearch)
-                #papersReturnedThroughSearch.extend(poisonPillPapers)
-                #papersReturnedThroughSearch.extend(poisonPillPapers)
-                #papersReturnedThroughSearch.extend(poisonPillPapers)
                 endTime = time.time()
                 print(f"Time taken for comparison: {endTime - startTime} seconds")
 
@@ -394,7 +136,6 @@ def process_pdf_route():
                 result['seed_paper'] = seedPaper
                 result['similarity_results'] = relativelySimilarPapers
                 result['recommendations'] = recommendations  # Add recommendations to result
-                result['openAlex'] = openAlexPapers
                 result['test'] = similarityResults
                 finishingTime = time.time()
                 print(f"Entire function took: {finishingTime - entireFuncionTime} seconds")

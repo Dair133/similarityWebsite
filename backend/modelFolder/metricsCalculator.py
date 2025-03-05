@@ -399,3 +399,55 @@ class MetricsCalculator:
             "recommended_citations": self.recommend_citations_references(seed_paper, similar_papers, field='citations', min_appearances=3),
             "recommended_references": self.recommend_citations_references(seed_paper, similar_papers, field='references', min_appearances=3)
         }
+        
+        
+        
+    def calculate_shared_attributes(self, papers, parsed_seed_references, parsed_seed_citations, parsed_seed_authors):
+     for paper in papers:
+        # Get attributes from paper
+        reference_list = paper['paper_info'].get('references', [])
+        citation_list = paper['paper_info'].get('citations', [])
+        author_list = paper['paper_info'].get('authors', [])
+        
+        # Calculate shared references
+        shared_reference_count = self.compareAttribute(parsed_seed_references, reference_list)
+        
+        # Calculate shared citations
+        shared_citation_count = self.compareAttribute(parsed_seed_citations, citation_list)
+        
+        # Format author list if it's a list and calculate shared authors
+        if isinstance(author_list, list):
+            author_list = ', '.join(author_list)  # Convert to string first if it's a list
+        shared_author_count = self.compareAttribute(parsed_seed_authors, author_list)
+        
+        # Store comparison metrics in paper
+        if 'comparison_metrics' not in paper:
+            paper['comparison_metrics'] = {}
+            
+        paper['comparison_metrics']['shared_reference_count'] = shared_reference_count
+        paper['comparison_metrics']['shared_citation_count'] = shared_citation_count
+        paper['comparison_metrics']['shared_author_count'] = shared_author_count
+    
+     return papers
+ 
+    def return_scibert_embeddings(self, generalPaperInfo, tokenizer, model):
+        seed_abstract = generalPaperInfo['abstract']
+        seed_embedding = self.get_scibert_embedding(seed_abstract, tokenizer, model)
+        return seed_embedding.tolist()
+        
+ 
+    def return_attributes_lists(self, generalPaperInfo):
+        # Here we will calculate shared references, citations and cosine
+        seedReferenceList = generalPaperInfo['references']
+        parsedSeedReferenceList = self.parse_attribute_list(seedReferenceList,';')
+                
+        seedCitationList = generalPaperInfo['citations']
+        parsedSeedCitationList = self.parse_attribute_list(seedCitationList,';')
+                
+        seedAuthorList = generalPaperInfo['authors']
+        if isinstance(seedAuthorList, list):
+                seedAuthorList = ', '.join(seedAuthorList)
+        parsedSeedAuthorList = self.parse_attribute_list(seedAuthorList, ',')
+            
+        return parsedSeedReferenceList, parsedSeedCitationList, parsedSeedAuthorList
+        

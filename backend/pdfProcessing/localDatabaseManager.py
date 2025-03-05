@@ -15,7 +15,7 @@ class LocalDatabaseManager:
             # References
             # Citations
             # Authors
-    def load_poison_pill_papers(self, file_name="poison_pill_papers_With_SciBert.xlsx"):
+    def load_poison_pill_papers(self, papersReturnedThroughSearch,file_name="poison_pill_papers_With_SciBert.xlsx"):
      """
     Load poison pill papers from Excel file and format them to match the existing data structure.
     The Excel file should be located in a 'poisonPill' folder in the same directory as this script.
@@ -106,8 +106,9 @@ class LocalDatabaseManager:
                 print(f"Error processing row in poison pill papers file: {e}")
                 continue
         
-        print(f"Loaded {len(poison_pill_papers)} poison pill papers")
-        return poison_pill_papers
+        print(f"Loaded {len(poison_pill_papers)} poison pill papers and appending them so list of returned papers")
+        papersReturnedThroughSearch.extend(poison_pill_papers)
+        return papersReturnedThroughSearch
         
      except Exception as e:
         print(f"Error loading poison pill papers: {e}")
