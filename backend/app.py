@@ -9,7 +9,6 @@ import torch
 from werkzeug.utils import secure_filename
 # backend/app.py
 from pdfProcessing.pdfProcessor import PDFProcessor  # Note the lowercase 'p' in processor
-from pdfProcessing.APISearch import APISearchClass
 
 # Import for model runners
 from modelFolder.modelRunners.standardModelRunner32k3 import ModelInference
@@ -31,7 +30,7 @@ import os
 from torch.nn.functional import cosine_similarity
 from transformers import AutoTokenizer, AutoModel
 from concurrent.futures import ThreadPoolExecutor
-from FetchResultsManager import FetchResultsManagerClass
+from APIManager import APIManagerClass
 
 current_dir = Path(__file__).parent
 similarity_root = current_dir.parent
@@ -55,11 +54,9 @@ if not os.path.exists(UPLOAD_FOLDER):
 @upload_bp.route('/process-pdf', methods=['POST'])
 def process_pdf_route():
     processor = PDFProcessor()
-    APISearch = APISearchClass()
-    cache = SearchTermCache()
     metricsCalculator = MetricsCalculator()
     localDatabaseManager = LocalDatabaseManager()
-    fetchResultsManager = FetchResultsManagerClass()
+    apiManagerClass = APIManagerClass()
 
     try:
         # Save the file
@@ -72,9 +69,9 @@ def process_pdf_route():
         try:    
 
                 startTime = time.time()
-                generalPaperInfo,paperSearchTermsAndTitle = fetchResultsManager.return_general_paper_info_from_semantic(filepath, pdfName)
+                generalPaperInfo,paperSearchTermsAndTitle = apiManagerClass.return_general_paper_info_from_semantic(filepath, pdfName, api_key_semantic, api_key_claude)
                 endTime = time.time()
-                print(f"Time taken for semantic scholar search: {endTime - startTime} seconds")
+                print(f"Time taken for semantic scholar search of seed paper: {endTime - startTime} seconds")
                 
                 
                 if generalPaperInfo:
@@ -82,46 +79,13 @@ def process_pdf_route():
                     result = processor.form_result_struct(generalPaperInfo, paperSearchTermsAndTitle, is_semantic_scholar=True)
                 else:
                     print('No Semantic Scholar data, getting ALL paper info from Haiku!')
-                    result = fetchResultsManager.return_general_paper_info_from_haiku(filepath,pdfName)
+                    result = apiManagerClass.return_general_paper_info_from_haiku(filepath,pdfName)
                   
-                seed_abstract = generalPaperInfo['abstract']
-                seed_embedding = metricsCalculator.get_scibert_embedding(seed_abstract, tokenizer, model)
-                generalPaperInfo['scibert'] = seed_embedding.tolist()
+                generalPaperInfo['scibert'] = metricsCalculator.return_scibert_embeddings(generalPaperInfo, tokenizer, model)
+                # Returns the references citaitons and authors in a list, making themr eady to work with later on
+                parsedSeedReferenceList, parsedSeedCitationList,  parsedSeedAuthorList = metricsCalculator.return_attributes_lists(generalPaperInfo)
                 
-                # Here we will calculate shared references, citations and cosine
-                seedReferenceList = generalPaperInfo['references']
-                parsedSeedReferenceList = metricsCalculator.parse_attribute_list(seedReferenceList,';')
-                
-                seedCitationList = generalPaperInfo['citations']
-                parsedSeedCitationList = metricsCalculator.parse_attribute_list(seedCitationList,';')
-                
-                seedAuthorList = generalPaperInfo['authors']
-                if isinstance(seedAuthorList, list):
-                    seedAuthorList = ', '.join(seedAuthorList)
-                parsedSeedAuthorList = metricsCalculator.parse_attribute_list(seedAuthorList, ',')
-                papersReturnedThroughSearch = []
-                
-                # Now based on the abstract info extracted from the paper we should search semantic scholar for similar papers
-                # Loop below searches semantic scholar using each of the core concepts and returns 5 papers for each of those concepts
-                # if 3 concepts than 15 papers
-                # We store 'search_type' so we can indicate to the user what type of search was done to get this paper
-                startTime = time.time()
-                search_terms = []
-                 # Add core methodologies with high weight since they're specific
-                 
-                 
-                # Replace the original search terms preparation block with:
-                search_terms = APISearch.prepare_search_terms(paperSearchTermsAndTitle, parsedSeedAuthorList)
-
-                # Do all searches in parallel
-                startTime = time.time()
-                print('search terms are')
-                print(search_terms)
-                papersReturnedThroughSearch = APISearch.search_papers_parallel(search_terms, api_key_semantic)
-                openAlexPapers = APISearch.search_papers_parallel_ALEX(search_terms,desired_papers=1)
-                papersReturnedThroughSearch.extend(openAlexPapers)
-                endTime = time.time()
-                print(f"Time taken for searching using core techniques: {endTime - startTime} seconds")          
+                papersReturnedThroughSearch = apiManagerClass.return_found_papers(paperSearchTermsAndTitle,parsedSeedAuthorList, api_key_semantic)
 
         
                 seedPaper = {
@@ -129,32 +93,17 @@ def process_pdf_route():
                     'paper_info': generalPaperInfo
                 }
                                 
-                # WORK HERE CLAUDE
-                # Now we should append poison pill papers from the excel
-                poisonPillPapers = localDatabaseManager.load_poison_pill_papers("poison_pill_papers_With_SciBert.xlsx")
-                # Append poison pill papers to the search results
-                if poisonPillPapers and len(poisonPillPapers) > 0:
-                    print(f"Adding {len(poisonPillPapers)} poison pill papers to comparison set")
-                    papersReturnedThroughSearch.extend(poisonPillPapers)
-                else:
-                    print("No poison pill papers found or loaded")
+                papersReturnedThroughSearch = localDatabaseManager.load_poison_pill_papers(papersReturnedThroughSearch,"poison_pill_papers_With_SciBert.xlsx")
+ 
                 
                 startTime = time.time()
                 print("Calculating shared attributes...")
                 # This funcition call get shared refs, cites and authors for all papers
-                papersReturnedThroughSearch = metricsCalculator.calculate_shared_attributes(
-                    papersReturnedThroughSearch,
-                    parsedSeedReferenceList,
-                    parsedSeedCitationList, 
-                    parsedSeedAuthorList,
-                )   
+                papersReturnedThroughSearch = metricsCalculator.calculate_shared_attributes(papersReturnedThroughSearch,parsedSeedReferenceList,parsedSeedCitationList, parsedSeedAuthorList,)   
 
                 print("Comparing papers...")
                 relativelySimilarPapers = processor.remove_duplicates(papersReturnedThroughSearch)
                 similarityResults = compare_papers(seedPaper, papersReturnedThroughSearch)
-                #papersReturnedThroughSearch.extend(poisonPillPapers)
-                #papersReturnedThroughSearch.extend(poisonPillPapers)
-                #papersReturnedThroughSearch.extend(poisonPillPapers)
                 endTime = time.time()
                 print(f"Time taken for comparison: {endTime - startTime} seconds")
 
@@ -181,7 +130,6 @@ def process_pdf_route():
                 result['seed_paper'] = seedPaper
                 result['similarity_results'] = relativelySimilarPapers
                 result['recommendations'] = recommendations  # Add recommendations to result
-                result['openAlex'] = openAlexPapers
                 result['test'] = similarityResults
                 finishingTime = time.time()
                 print(f"Entire function took: {finishingTime - entireFuncionTime} seconds")

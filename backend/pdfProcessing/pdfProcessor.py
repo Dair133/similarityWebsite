@@ -123,31 +123,7 @@ class PDFProcessor:
         
         return text
 
-    def ask_claude(self, pdfText: str, systemInstructions: str, api_key: str) -> str:
-     try:
-        message = {
-            "model": "claude-3-5-haiku-20241022",
-            "max_tokens": 1024,
-            "system": systemInstructions,
-            "messages": [
-                {
-                    "role": "user",
-                    "content": f"{pdfText}"
-                }
-            ]
-        }
-        
-        client = anthropic.Anthropic(api_key=api_key)
-        
-        # Get the response
-        response = client.messages.create(**message)
-        
-        return response
-        
-     except Exception as e:
-        # If something goes wrong, log it and raise the error
-        self.logger.error(f"Error communicating with Claude: {str(e)}")
-        raise
+
     
 
 

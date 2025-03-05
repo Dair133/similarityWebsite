@@ -21,7 +21,7 @@ from typing import List, Dict
 import requests
 import time
 import re
-class APISearchClass:
+class APISearchPapersClass:
     def __init__(self):
         self.max_workers = 5
         self.session = requests.Session()
@@ -312,12 +312,7 @@ class APISearchClass:
      return {'data': []}
             
             
-    def search_papers_parallel(self, search_terms: List[Dict], api_key: str) -> List[Dict]:
-     """
-    Parallel search that tracks which terms found which papers
-    Returns papers with information about which search terms found them
-    Ensures all returned papers have valid abstracts
-     """
+    def search_papers_parallel_SEMANTIC(self, search_terms: List[Dict], api_key: str) -> List[Dict]:
      def search_single_term(term_info: Dict) -> List[Dict]:
          try:
             if not term_info or 'term' not in term_info:
@@ -662,4 +657,12 @@ class APISearchClass:
             except Exception as e:
                 print(f"Error processing term {term.get('term', 'unknown')}: {e}")
      return all_valid_papers
+ 
+ 
+ 
+ 
+    # def return_found_papers(self,search_terms, api_key_semantic):
+    #     papersReturnedThroughSearch = self.search_papers_parallel(search_terms, api_key_semantic)
+    #     openAlexPapers = self.search_papers_parallel_ALEX(search_terms,desired_papers=1)
+    #     papersReturnedThroughSearch.extend(openAlexPapers)
         

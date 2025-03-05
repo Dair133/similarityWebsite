@@ -429,3 +429,25 @@ class MetricsCalculator:
         paper['comparison_metrics']['shared_author_count'] = shared_author_count
     
      return papers
+ 
+    def return_scibert_embeddings(self, generalPaperInfo, tokenizer, model):
+        seed_abstract = generalPaperInfo['abstract']
+        seed_embedding = self.get_scibert_embedding(seed_abstract, tokenizer, model)
+        return seed_embedding.tolist()
+        
+ 
+    def return_attributes_lists(self, generalPaperInfo):
+        # Here we will calculate shared references, citations and cosine
+        seedReferenceList = generalPaperInfo['references']
+        parsedSeedReferenceList = self.parse_attribute_list(seedReferenceList,';')
+                
+        seedCitationList = generalPaperInfo['citations']
+        parsedSeedCitationList = self.parse_attribute_list(seedCitationList,';')
+                
+        seedAuthorList = generalPaperInfo['authors']
+        if isinstance(seedAuthorList, list):
+                seedAuthorList = ', '.join(seedAuthorList)
+        parsedSeedAuthorList = self.parse_attribute_list(seedAuthorList, ',')
+            
+        return parsedSeedReferenceList, parsedSeedCitationList, parsedSeedAuthorList
+        
