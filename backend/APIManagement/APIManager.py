@@ -3,7 +3,7 @@
 import logging
 import time
 from flask import Blueprint, request, jsonify
-from typing import Dict, Any
+from typing import Dict, Any, List
 import numpy as np
 import torch
 from werkzeug.utils import secure_filename
@@ -116,7 +116,27 @@ class APIManagerClass:
         return semanticScholarPapers
     
     
-    def external_scibert(self, text:str):
-        scibertEmbedding = self.personalPCClass.test_local_server(abstract_text = text, url="http://localhost:5000/embed")
+    # Takes in a single seed paper and returns a single scibert embedding
+    def get_single_scibert_embedding(self, generalPaperInfo, ngrok_domain_name:str):
+        seedAbstract = generalPaperInfo['abstract']
+        self.personalPCClass.check_server_health(base_url=ngrok_domain_name)
+        scibertEmbedding = self.personalPCClass.test_local_server(abstract_text = seedAbstract, base_url=ngrok_domain_name)
         return scibertEmbedding
-        
+    
+    
+    
+    def get_batch_scibert_embeddings(self, papersReturnedThroughSearch):
+        # Now we need to form go through each paper and form an abstract title Dict
+        title_abstract_dict = {}
+        for paper in papersReturnedThroughSearch:
+            paperAbstract = paper['paper_info']['abstract']
+            paperTitle = paper['paper_info']['title']
+            title_abstract_dict[paperTitle] = paperAbstract
+
+        # Now that we have a paper abstract dict we can pas it to get our batch scibert embeddings       
+        # We can use our title to query for our abstract, this is just so that we make sure that SciBert + abstract are paired
+        # correctly , we dont want our indices to messup and for the wrong scibert to be paired with the wrong title
+        # return value will be title, SciBert dict.
+        returnedJSONData = self.personalPCClass.send_batch_scibert_request(title_abstract_dict)
+        embeddings = returnedJSONData.get("embeddings", {})
+        return embeddings
