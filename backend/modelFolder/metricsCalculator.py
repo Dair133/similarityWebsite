@@ -240,42 +240,7 @@ class MetricsCalculator:
                 print("First paper content:", papers[0])
             return []
      
-    def apply_source_weights(self, papers: List[Dict]) -> Dict:
-        # Define weights for different search types
-        weights = {
-            'core_concept': 1.00,         
-            'core_methodology': 1.00,   
-            'related_methodology': 1.00,  
-            'abstract_concept': 0.1,      
-            'cross_domain_applications': 0.1,  
-            'theoretical_foundation': 0.1, 
-            'analogous_problems': 0.1    
-        }
-        
-        weighted_papers = []
-        for paper in papers:
-            weighted_paper = paper.copy()
-            sources = paper.get('source_info', [])
-            
-            if sources and len(sources) == 1:  # Since each paper has exactly one search type
-                source = sources[0]  # Get the single source
-                weight = weights.get(source['search_type'], 1.0)
-                
-                original_score = paper.get('similarity_score', 0)
-                
-                weighted_paper['similarity_score'] = original_score * weight
-                weighted_paper['applied_weight'] = weight
-                
-            weighted_papers.append(weighted_paper)
-        
-        # Sort papers by adjusted similarity score
-        weighted_papers.sort(
-            key=lambda x: x.get('similarity_score', 0),
-            reverse=True
-        )
-        
-        # Return dictionary with 'compared_papers' key
-        return {'compared_papers': weighted_papers}
+
      
     def parse_attribute_list(self, attributeList: str, delimiter: str) -> List[str]:
         listResults = attributeList.split(delimiter)

@@ -100,22 +100,21 @@ def process_pdf_route():
                 papersReturnedThroughSearch = localDatabaseManager.load_poison_pill_papers(papersReturnedThroughSearch,"poison_pill_papers_With_SciBert.xlsx")
  
                 
-                startTime = time.time()
-                print("Calculating shared attributes...")
                 # This funcition call get shared refs, cites and authors for all papers
-                scibertEmbeddingsAndTitleDict = apiManagerClass.get_batch_scibert_embeddings(papersReturnedThroughSearch)
+                papersReturnedThroughSearch = apiManagerClass.get_batch_scibert_embeddings(papersReturnedThroughSearch)
                 papersReturnedThroughSearch = metricsCalculator.calculate_shared_attributes(papersReturnedThroughSearch,parsedSeedReferenceList,parsedSeedCitationList, parsedSeedAuthorList,)   
 
                 print("Comparing papers...")
                 relativelySimilarPapers = processor.remove_duplicates(papersReturnedThroughSearch)
-                similarityResults = compare_papers(seedPaper, papersReturnedThroughSearch)
+   
+                
+                similarityResults = apiManagerClass.compare_papers_batch(seedPaper, papersReturnedThroughSearch)
+                #print("External similarity results are", externalSimilarityResults)
                 endTime = time.time()
                 print(f"Time taken for comparison: {endTime - startTime} seconds")
 
                 
-                # From returned papers and their simlarity score, get only relatively similar papers
-                relativelySimilarPapers = metricsCalculator.apply_source_weights(similarityResults['compared_papers'])
-                relativelySimilarPapers = metricsCalculator.get_relatively_similar_papers(relativelySimilarPapers['compared_papers'])
+                relativelySimilarPapers = metricsCalculator.get_relatively_similar_papers(similarityResults['compared_papers'])
                 recommendations = metricsCalculator.get_recommendations(seedPaper, relativelySimilarPapers)
         
                 # Remove the 'scibert' attribute from relatively similar papers
@@ -134,8 +133,10 @@ def process_pdf_route():
                 return jsonify(result), 200
                    
         except Exception as e:
+                import traceback
                 error_message = f"Error processing request: {str(e)}"
-                print(f"Detailed error: {error_message}")  # Enhanced error logging
+                detailed_error = traceback.format_exc()
+                print(f"Detailed error: {detailed_error}")  # Enhanced error logging
                 
                 # Clean up if file exists
                 if os.path.exists(filepath):
@@ -143,7 +144,8 @@ def process_pdf_route():
                     
                 return jsonify({
                     'error': error_message,
-                    'status': 'error'
+                    'status': 'error',
+                    'traceback': detailed_error
                 }), 500
 
     except Exception as e:

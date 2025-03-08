@@ -120,7 +120,7 @@ class APIManagerClass:
     def get_single_scibert_embedding(self, generalPaperInfo, ngrok_domain_name:str):
         seedAbstract = generalPaperInfo['abstract']
         self.personalPCClass.check_server_health(base_url=ngrok_domain_name)
-        scibertEmbedding = self.personalPCClass.test_local_server(abstract_text = seedAbstract, base_url=ngrok_domain_name)
+        scibertEmbedding = self.personalPCClass.get_single_scibert(abstract_text = seedAbstract, base_url=ngrok_domain_name)
         return scibertEmbedding
     
     
@@ -138,5 +138,26 @@ class APIManagerClass:
         # correctly , we dont want our indices to messup and for the wrong scibert to be paired with the wrong title
         # return value will be title, SciBert dict.
         returnedJSONData = self.personalPCClass.send_batch_scibert_request(title_abstract_dict)
-        embeddings = returnedJSONData.get("embeddings", {})
-        return embeddings
+        returnedEmbeddingsDict = returnedJSONData.get("embeddings", {})
+        for paper in papersReturnedThroughSearch:
+            paper['paper_info']['scibert'] = returnedEmbeddingsDict[paper['paper_info']['title']]
+            # print(paper['paper_info']['scibert'])
+            
+        return papersReturnedThroughSearch
+    
+    
+    
+    def compare_papers_batch(self, seedPaper, papersReturnedThroughSearch):
+     # Get comparison results
+     comparedPapers = self.personalPCClass.compare_papers_socket(seedPaper, papersReturnedThroughSearch)
+    
+     # Get the list of compared papers - this is a LIST of dictionaries
+     comparedPapersList = comparedPapers.get('compared_papers', [])
+    
+    # Print just the source_info for each paper (more controlled output)
+     for i, paper in enumerate(comparedPapersList):
+        print(f"Paper {i} source_info:", paper.get('source_info', {}))
+        # You can also access similarity scores
+        print(f"Paper {i} similarity:", paper.get('similarity_score', 0))
+    
+     return comparedPapers

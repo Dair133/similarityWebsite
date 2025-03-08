@@ -76,17 +76,21 @@ function NodeGraph({ results, toggleGraphView }) {
             isSeed: true
         });
 
-        // Process similarity results
-        results.similarity_results.forEach((paper, index) => {
+        // Process similarity results and sort by similarity score descending
+        const sortedPapers = [...results.test.compared_papers].sort((a, b) => 
+            (b.similarity_score || 0) - (a.similarity_score || 0)
+        );
+
+        sortedPapers.forEach((paper, index) => {
             // Get a unique ID for the paper
             const paperId = `paper_${index}`;
-            
+
             // Determine color based on source type
             let color = "#3498DB"; // Default blue color
-            
+
             if (paper.source_info) {
                 const sourceType = paper.source_info.search_type;
-                
+
                 // Color mapping for different search types
                 if (sourceType === "core_methodology") {
                     color = "#2ECC71"; // Green for core methodology
@@ -96,17 +100,31 @@ function NodeGraph({ results, toggleGraphView }) {
                     color = "#E74C3C"; // Red for poison pill papers
                 }
             }
-            
+
+            // Calculate normalized distance based on rank
+            // This ensures a more predictable distribution based on rank
+            // Using a steeper curve that accelerates distance after top 10
+            let normalizedDistance;
+            if (index < 20) {
+                // First 10 papers - gentle curve
+                normalizedDistance = (index / 20) * 0.3;
+            } else {
+                // Papers after top 10 - steeper curve
+                normalizedDistance = 0.3 + Math.pow((index - 20) / (sortedPapers.length - 20), 0.6) * 0.7;
+            }
+
             // Create node
             nodes.push({
                 id: paperId,
-                name: paper.paper_info.title || `Paper ${index + 1}`,
+                name: paper.paper_info?.title || `Paper ${index + 1}`,
                 val: 10, // Smaller size for related papers
                 color: color,
                 similarity: paper.similarity_score || 0.5, // Default if undefined
-                sourceType: paper.source_info?.search_type || "unknown"
+                sourceType: paper.source_info?.search_type || "unknown",
+                rank: index, // Store the rank based on similarity
+                normalizedDistance: normalizedDistance // Store for use in force layout
             });
-            
+
             // Create link
             links.push({
                 source: "seed_paper",
@@ -120,56 +138,98 @@ function NodeGraph({ results, toggleGraphView }) {
         setGraphData({ nodes, links });
     }, [results]);
 
-    // Customize force simulation
+    // Update force simulation to better represent similarity distances
     useEffect(() => {
         if (fgRef.current && graphData.nodes.length > 0) {
-            // Get the link force and modify it
-            const linkForce = fgRef.current.d3Force('link');
-            if (linkForce) {
-                linkForce
-                    .distance(link => 200 * (1 - Math.pow(link.similarity, 2))) // Non-linear distance based on similarity
-                    .strength(link => 0.1 + link.similarity * 0.5); // Stronger links for higher similarity
-            }
-            
-            // Modify charge force for repulsion
-            const chargeForce = fgRef.current.d3Force('charge');
-            if (chargeForce) {
-                chargeForce.strength(-120);
-            }
-            
-            // Modify center force
-            const centerForce = fgRef.current.d3Force('center');
-            if (centerForce) {
-                centerForce.strength(0.15);
-            }
-            
-            // Get graph dimensions from the container
+            // Get the graph dimensions
             const graphWidth = fgRef.current.graphWidth || window.innerWidth * 0.5 - 80;
             const graphHeight = fgRef.current.graphHeight || window.innerHeight * 0.95 - 120;
             
-            // Add or update radial force
+            // Configure link force with rank-based distance calculation
+            const linkForce = fgRef.current.d3Force('link');
+            if (linkForce) {
+                linkForce
+                    .distance(link => {
+                        // For non-seed nodes, use the normalizedDistance
+                        if (link.source === "seed_paper" || link.target === "seed_paper") {
+                            const node = link.source === "seed_paper" ? 
+                                graphData.nodes.find(n => n.id === link.target) : 
+                                graphData.nodes.find(n => n.id === link.source);
+                            
+                            if (node && node.normalizedDistance !== undefined) {
+                                // Use a steeper scaling to emphasize differences
+                                // Top 10 papers close, then rapid increase
+                                return 150 + Math.pow(node.normalizedDistance, 0.8) * 700;
+                            }
+                        }
+                        return 300; // Default fallback
+                    })
+                    .strength(link => {
+                        // Stronger links for more similar nodes
+                        if (link.source === "seed_paper" || link.target === "seed_paper") {
+                            const node = link.source === "seed_paper" ? 
+                                graphData.nodes.find(n => n.id === link.target) : 
+                                graphData.nodes.find(n => n.id === link.source);
+                            
+                            if (node && node.normalizedDistance !== undefined) {
+                                // Decrease strength more rapidly as rank increases
+                                return Math.max(0.05, 1 - node.normalizedDistance * 1.5);
+                            }
+                        }
+                        return 0.3; // Default fallback
+                    });
+            }
+            
+            // Configure charge force for better separation
+            const chargeForce = fgRef.current.d3Force('charge');
+            if (chargeForce) {
+                chargeForce.strength(-800); // Further increased repulsion between nodes
+            }
+            
+            // Use radial force primarily for organizing by rank
             fgRef.current.d3Force('radial', d3.forceRadial()
-                .radius(d => d.isSeed ? 0 : 200 * (1 - Math.pow(d.similarity || 0.5, 2)))
-                .strength(d => d.isSeed ? 0 : 0.8)
+                .radius(d => {
+                    if (d.isSeed) return 0; // Seed paper at center
+                    
+                    // Use normalizedDistance for predictable radial placement
+                    if (d.normalizedDistance !== undefined) {
+                        // More dramatic scaling with distinct grouping
+                        if (d.rank < 10) {
+                            // Top 10 papers - closer together
+                            return d.normalizedDistance * Math.min(graphWidth, graphHeight) * 0.7;
+                        } else {
+                            // Papers after top 10 - spread more aggressively
+                            return (0.3 + d.normalizedDistance * 0.7) * Math.min(graphWidth, graphHeight) * 0.9;
+                        }
+                    }
+                    return 300; // Default fallback
+                })
+                .strength(1.5) // Increased strength for more deterministic layout
                 .x(graphWidth / 2)
                 .y(graphHeight / 2)
             );
             
-            // Reheat the simulation
-            fgRef.current.d3ReheatSimulation();
+            // Add collision force to prevent overlap
+            fgRef.current.d3Force('collision', d3.forceCollide()
+                .radius(d => Math.sqrt(d.val) * 2 + 10) // Increased collision radius
+                .strength(1.0) // Maximum strength
+            );
+            
+            // Reheat the simulation with high alpha for complete reorganization
+            fgRef.current.d3ReheatSimulation(1.0);
         }
     }, [graphData]);
 
     // Define node rendering
     const nodeCanvasObject = (node, ctx, globalScale) => {
         const nodeR = Math.sqrt(node.val) * 2;
-        
+
         // Draw node circle
         ctx.beginPath();
         ctx.fillStyle = node.color;
         ctx.arc(node.x, node.y, nodeR, 0, 2 * Math.PI);
         ctx.fill();
-        
+
         // Draw outline for seed paper
         if (node.isSeed) {
             ctx.beginPath();
@@ -178,49 +238,75 @@ function NodeGraph({ results, toggleGraphView }) {
             ctx.arc(node.x, node.y, nodeR, 0, 2 * Math.PI);
             ctx.stroke();
         }
+
+        // Draw rank number above each non-seed node
+        if (!node.isSeed) {
+            const rankLabel = `#${node.rank + 1}`; // +1 because rank is zero-based
+            ctx.font = '10px Sans-Serif';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = 'black';
+            
+            // Add white background for better readability
+            const textWidth = ctx.measureText(rankLabel).width;
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.fillRect(node.x - textWidth / 2 - 2, node.y - nodeR - 15, textWidth + 4, 14);
+            
+            // Draw the rank number
+            ctx.fillStyle = 'black';
+            ctx.fillText(rankLabel, node.x, node.y - nodeR - 5);
+        }
         
+        // Only show similarity score on hover
+        if (!node.isSeed && node === fgRef.current?.hoverNode) {
+            const simLabel = node.similarity ? (node.similarity.toFixed(4)) : "";
+            ctx.font = '10px Sans-Serif';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = 'black';
+            ctx.fillText(simLabel, node.x, node.y - nodeR - 5);
+        }
+
         // Only draw node label if the node is being hovered over
         if (node === fgRef.current?.hoverNode) {
             const label = node.name;
             const fontSize = node.isSeed ? 14 : 12;
-            
+
             ctx.font = `${fontSize}px Sans-Serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            
+
             // Draw background for text
             const textWidth = ctx.measureText(label).width;
             ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-            ctx.fillRect(node.x - textWidth/2 - 2, node.y + nodeR + 2, textWidth + 4, fontSize + 4);
-            
+            ctx.fillRect(node.x - textWidth / 2 - 2, node.y + nodeR + 2, textWidth + 4, fontSize + 4);
+
             // Draw text
             ctx.fillStyle = 'black';
-            ctx.fillText(label, node.x, node.y + nodeR + fontSize/2 + 4);
+            ctx.fillText(label, node.x, node.y + nodeR + fontSize / 2 + 4);
         }
     };
 
     // Legend component
     const Legend = () => (
         <div style={styles.legendContainer}>
-            <h4 style={{margin: '0 0 10px 0'}}>Paper Types</h4>
+            <h4 style={{ margin: '0 0 10px 0' }}>Paper Types</h4>
             <div style={styles.legendItem}>
-                <div style={{...styles.legendColor, backgroundColor: '#FF5733'}}></div>
+                <div style={{ ...styles.legendColor, backgroundColor: '#FF5733' }}></div>
                 <span>Seed Paper</span>
             </div>
             <div style={styles.legendItem}>
-                <div style={{...styles.legendColor, backgroundColor: '#2ECC71'}}></div>
+                <div style={{ ...styles.legendColor, backgroundColor: '#2ECC71' }}></div>
                 <span>Core Methodology</span>
             </div>
             <div style={styles.legendItem}>
-                <div style={{...styles.legendColor, backgroundColor: '#9B59B6'}}></div>
+                <div style={{ ...styles.legendColor, backgroundColor: '#9B59B6' }}></div>
                 <span>Conceptual Angles</span>
             </div>
             <div style={styles.legendItem}>
-                <div style={{...styles.legendColor, backgroundColor: '#E74C3C'}}></div>
+                <div style={{ ...styles.legendColor, backgroundColor: '#E74C3C' }}></div>
                 <span>Poison Pill</span>
             </div>
             <div style={styles.legendItem}>
-                <div style={{...styles.legendColor, backgroundColor: '#3498DB'}}></div>
+                <div style={{ ...styles.legendColor, backgroundColor: '#3498DB' }}></div>
                 <span>Other</span>
             </div>
         </div>
@@ -234,9 +320,9 @@ function NodeGraph({ results, toggleGraphView }) {
                     Switch to Seed Paper View
                 </button>
             </div>
-            
+
             <Legend />
-            
+
             <ForceGraph2D
                 ref={fgRef}
                 graphData={graphData}
@@ -251,14 +337,9 @@ function NodeGraph({ results, toggleGraphView }) {
                     ctx.arc(node.x, node.y, nodeR + 5, 0, 2 * Math.PI);
                     ctx.fill();
                 }}
-                cooldownTicks={100}
-                width={window.innerWidth * 0.5 - 80} // Adjust for container width and padding
-                height={window.innerHeight * 0.95 - 120} // Adjust for header and container padding
-                // onEngineStop={() => {
-                //     if (fgRef.current) {
-                //         setTimeout(() => fgRef.current.zoomToFit(400, 100), 500);
-                //     }
-                // }}
+                cooldownTicks={250}  // Increased for better stabilization
+                width={window.innerWidth * 0.5 - 80}
+                height={window.innerHeight * 0.95 - 120}
             />
         </div>
     );

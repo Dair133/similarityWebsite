@@ -131,7 +131,7 @@ class APIPersonalPCClass:
         return None
 
 
-    def test_local_server(self, abstract_text, base_url="https://fypserver.ngrok.app"):
+    def get_single_scibert(self, abstract_text, base_url="https://fypserver.ngrok.app"):
      # Extract hostname from URL
      hostname = base_url.replace("https://", "").replace("http://", "").split("/")[0]
      port = 443  # HTTPS port
@@ -212,6 +212,103 @@ class APIPersonalPCClass:
         print(f"Exception: {type(e).__name__}: {str(e)}")
         return [0.0] * 768
     
+    
+    def compare_papers_socket(self, seed_paper, papers_to_compare, base_url="https://fypserver.ngrok.app"):
+     # Extract hostname from URL
+     hostname = base_url.replace("https://", "").replace("http://", "").split("/")[0]
+     port = 443  # HTTPS port
+    
+     print(f"Sending compare_papers request to {hostname}:{port} using raw sockets...")
+     start_time = time.time()
+    
+     try:
+        # Create raw socket connection
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(30)  # 30 second timeout for longer processing
+        
+        # Wrap with SSL for HTTPS
+        context = ssl.create_default_context()
+        wrapped_socket = context.wrap_socket(sock, server_hostname=hostname)
+        
+        # Connect to the server
+        wrapped_socket.connect((hostname, port))
+        print(f"Socket connected in {time.time() - start_time:.2f} seconds")
+        
+        # Prepare request data
+        request_data = {
+            "seed_paper": seed_paper,
+            "papers_to_compare": papers_to_compare
+        }
+        
+        # Convert data to JSON
+        json_data = json.dumps(request_data)
+        content_length = len(json_data)
+        
+        # Prepare HTTP POST request
+        request = (
+            f"POST /compare_papers HTTP/1.1\r\n"
+            f"Host: {hostname}\r\n"
+            f"Content-Type: application/json\r\n"
+            f"Content-Length: {content_length}\r\n"
+            f"Connection: close\r\n\r\n"
+            f"{json_data}"
+        )
+        
+        # Send the request
+        send_start = time.time()
+        wrapped_socket.sendall(request.encode())
+        print(f"Request sent in {time.time() - send_start:.2f} seconds")
+        
+        # Receive the response
+        recv_start = time.time()
+        response_data = b""
+        while True:
+            chunk = wrapped_socket.recv(4096)
+            if not chunk:
+                break
+            response_data += chunk
+        
+        print(f"Response received in {time.time() - recv_start:.2f} seconds")
+        
+        # Close the socket
+        wrapped_socket.close()
+        
+        # Parse the response
+        response_text = response_data.decode('utf-8')
+        
+        # Check if response contains success status code
+        if "200 OK" in response_text:
+            print(f"Request successful! Total time: {time.time() - start_time:.2f} seconds")
+            
+            # Extract JSON response body
+            # HTTP response has headers and body separated by \r\n\r\n
+            response_parts = response_text.split("\r\n\r\n", 1)
+            if len(response_parts) > 1:
+                response_body = response_parts[1]
+                try:
+                    # Parse JSON response
+                    response_json = json.loads(response_body)
+                    return response_json
+                except json.JSONDecodeError as e:
+                    print(f"Error parsing JSON response: {e}")
+                    print(f"Response body: {response_body[:200]}...")
+                    return None
+            else:
+                print(f"Invalid response format: {response_text[:200]}...")
+                return None
+        else:
+            print(f"Server returned non-200 status. Response: {response_text[:200]}...")
+            return None
+            
+     except socket.timeout:
+        print(f"Socket operation timed out after {time.time() - start_time:.2f} seconds")
+        return None
+     except socket.error as e:
+        print(f"Socket error: {e}")
+        return None
+     except Exception as e:
+        print(f"Unexpected error: {type(e).__name__}: {str(e)}")
+        return None
     
     
     def check_server_health(self, base_url="https://fypserver.ngrok.app"):
