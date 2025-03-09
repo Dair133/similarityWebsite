@@ -3,7 +3,7 @@
 import logging
 import time
 from flask import Blueprint, request, jsonify
-from typing import Dict, Any
+from typing import Dict, Any, List
 import numpy as np
 import requests
 import torch
@@ -31,61 +31,351 @@ import os
 from torch.nn.functional import cosine_similarity
 from transformers import AutoTokenizer, AutoModel
 from concurrent.futures import ThreadPoolExecutor
+    
+import urllib3
+import json
+import time
+import numpy as np
 
+import socket
+import json
+import time
+import numpy as np
+import ssl
 class APIPersonalPCClass:
     def __init__(self):
         pass
     
+    def send_batch_scibert_request(self, abstracts_dict, base_url="https://fypserver.ngrok.app"):
+     # Extract hostname from URL
+     hostname = base_url.replace("https://", "").replace("http://", "").split("/")[0]
+     port = 443  # HTTPS port
     
-    def test_local_server(self, abstract_text, url="http://localhost:5000/embed"):
-     """
-    Test the SciBERT embedding server by sending an abstract and printing results
+     print(f"Sending batch request to {hostname}:{port} using raw sockets...")
+     start_time = time.time()
+     
+     try:
+        # Create raw socket connection
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(15)  # 15 second timeout for batch processing
+        
+        # Wrap with SSL for HTTPS
+        context = ssl.create_default_context()
+        wrapped_socket = context.wrap_socket(sock, server_hostname=hostname)
+        
+        # Connect to the server
+        wrapped_socket.connect((hostname, port))
+        print(f"Socket connected in {time.time() - start_time:.2f} seconds")
+        
+        # Convert dict to JSON and prepare the HTTP POST request
+        payload = json.dumps({'texts':abstracts_dict})
+        request = (
+            f"POST /batch_embed HTTP/1.1\r\n"
+            f"Host: {hostname}\r\n"
+            f"Content-Type: application/json\r\n"
+            f"Content-Length: {len(payload)}\r\n"
+            f"Connection: close\r\n\r\n"
+            f"{payload}"
+        )
+        
+        # Send the request
+        send_start = time.time()
+        wrapped_socket.sendall(request.encode('utf-8'))
+        print(f"Request sent in {time.time() - send_start:.2f} seconds")
+        
+        # Receive the response
+        recv_start = time.time()
+        response_data = b""
+        while True:
+            chunk = wrapped_socket.recv(4096)
+            if not chunk:
+                break
+            response_data += chunk
+        
+        print(f"Response received in {time.time() - recv_start:.2f} seconds")
+        
+        # Close the socket
+        wrapped_socket.close()
+        
+        # Parse the response
+        response_text = response_data.decode('utf-8')
+        
+        # Check if response contains success status code
+        if "200 OK" in response_text:
+            # Extract JSON response from the HTTP response
+            try:
+                json_start = response_text.find('{')
+                if json_start >= 0:
+                    json_data = json.loads(response_text[json_start:])
+                    print(f"Successfully processed batch request")
+                    print(f"Total time: {time.time() - start_time:.2f} seconds")
+                    return json_data
+                else:
+                    print("Could not find JSON in response")
+                    return None
+            except json.JSONDecodeError as e:
+                print(f"Failed to parse JSON response: {e}")
+                return None
+        else:
+            print(f"Server returned non-200 status. Response: {response_text[:100]}")
+            return None
+            
+     except socket.timeout:
+        print(f"Socket operation timed out after {time.time() - start_time:.2f} seconds")
+        return None
+     except socket.error as e:
+        print(f"Socket error: {e}")
+        return None
+     except Exception as e:
+        print(f"Unexpected error: {type(e).__name__}: {str(e)}")
+        return None
+
+
+    def get_single_scibert(self, abstract_text, base_url="https://fypserver.ngrok.app"):
+     # Extract hostname from URL
+     hostname = base_url.replace("https://", "").replace("http://", "").split("/")[0]
+     port = 443  # HTTPS port
     
-    Args:
-        abstract_text (str): The abstract text to embed
-        url (str): The server URL endpoint
-    """
-    # Prepare the request payload
-     payload = {
-        "text": abstract_text
-    }
-    
-     # Send the request to the server
-     print(f"Sending request to {url}...")
+     print(f"Connecting directly to {hostname}:{port}...")
      start_time = time.time()
     
      try:
-        response = requests.post(
-            url,
-            json=payload,
-            headers={"Content-Type": "application/json"}
+        # Create raw socket connection
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(10)  # 10 second timeout
+        
+        # Wrap with SSL for HTTPS
+        context = ssl.create_default_context()
+        wrapped_socket = context.wrap_socket(sock, server_hostname=hostname)
+        
+        # Connect to the server
+        wrapped_socket.connect((hostname, port))
+        print(f"Socket connected in {time.time() - start_time:.2f} seconds")
+        
+        # Prepare the HTTP request with minimal headers
+        payload = json.dumps({"text": abstract_text})
+        request = (
+            f"POST /embed HTTP/1.1\r\n"
+            f"Host: {hostname}\r\n"
+            f"Content-Type: application/json\r\n"
+            f"Content-Length: {len(payload)}\r\n"
+            f"Connection: close\r\n"
+            f"\r\n"
+            f"{payload}"
         )
         
-        # Calculate request time
-        elapsed_time = time.time() - start_time
+        # Send the request
+        send_start = time.time()
+        wrapped_socket.sendall(request.encode('utf-8'))
+        print(f"Request sent in {time.time() - send_start:.2f} seconds")
         
-        # Check if request was successful
-        if response.status_code == 200:
-            result = response.json()
-            embedding = np.array(result["embedding"])
+        # Receive the response
+        recv_start = time.time()
+        response_data = b""
+        while True:
+            chunk = wrapped_socket.recv(4096)
+            if not chunk:
+                break
+            response_data += chunk
+        
+        print(f"Response received in {time.time() - recv_start:.2f} seconds")
+        
+        # Close the socket
+        wrapped_socket.close()
+        
+        # Parse the HTTP response
+        response_text = response_data.decode('utf-8')
+        headers, body = response_text.split('\r\n\r\n', 1)
+        
+        # Extract JSON from body (ignoring potential transfer-encoding chunking for simplicity)
+        try:
+            # Try to find and parse the JSON part of the response
+            json_start = body.find('{')
+            if json_start >= 0:
+                json_data = json.loads(body[json_start:])
+                if "embedding" in json_data:
+                    embedding = json_data["embedding"]
+                    print(f"Successfully extracted embedding, dimension: {len(embedding)}")
+                    return embedding
             
-            print(f"Request successful! Status code: {response.status_code}")
-            print(f"Time taken: {elapsed_time:.2f} seconds")
-            print(f"Embedding dimension: {result['dimension']}")
-            print(f"Embedding type: {type(embedding)}")
-            print(f"Embedding shape: {embedding.shape}")
-            print(f"First 5 values: {embedding[:5]}")
-            print(f"Last 5 values: {embedding[-5:]}")
-            print(f"Min value: {np.min(embedding)}")
-            print(f"Max value: {np.max(embedding)}")
-            print(f"Mean value: {np.mean(embedding)}")
+            print("Could not find embedding in response")
+            return [0.0] * 768  # Default size
             
-            return embedding
+        except json.JSONDecodeError:
+            print("Failed to parse JSON response")
+            return [0.0] * 768
+            
+     except socket.timeout:
+        print(f"Socket operation timed out after {time.time() - start_time:.2f} seconds")
+        return [0.0] * 768
+     except Exception as e:
+        print(f"Exception: {type(e).__name__}: {str(e)}")
+        return [0.0] * 768
+    
+    
+    def compare_papers_socket(self, seed_paper, papers_to_compare, base_url="https://fypserver.ngrok.app"):
+     # Extract hostname from URL
+     hostname = base_url.replace("https://", "").replace("http://", "").split("/")[0]
+     port = 443  # HTTPS port
+    
+     print(f"Sending compare_papers request to {hostname}:{port} using raw sockets...")
+     start_time = time.time()
+    
+     try:
+        # Create raw socket connection
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(30)  # 30 second timeout for longer processing
+        
+        # Wrap with SSL for HTTPS
+        context = ssl.create_default_context()
+        wrapped_socket = context.wrap_socket(sock, server_hostname=hostname)
+        
+        # Connect to the server
+        wrapped_socket.connect((hostname, port))
+        print(f"Socket connected in {time.time() - start_time:.2f} seconds")
+        
+        # Prepare request data
+        request_data = {
+            "seed_paper": seed_paper,
+            "papers_to_compare": papers_to_compare
+        }
+        
+        # Convert data to JSON
+        json_data = json.dumps(request_data)
+        content_length = len(json_data)
+        
+        # Prepare HTTP POST request
+        request = (
+            f"POST /compare_papers HTTP/1.1\r\n"
+            f"Host: {hostname}\r\n"
+            f"Content-Type: application/json\r\n"
+            f"Content-Length: {content_length}\r\n"
+            f"Connection: close\r\n\r\n"
+            f"{json_data}"
+        )
+        
+        # Send the request
+        send_start = time.time()
+        wrapped_socket.sendall(request.encode())
+        print(f"Request sent in {time.time() - send_start:.2f} seconds")
+        
+        # Receive the response
+        recv_start = time.time()
+        response_data = b""
+        while True:
+            chunk = wrapped_socket.recv(4096)
+            if not chunk:
+                break
+            response_data += chunk
+        
+        print(f"Response received in {time.time() - recv_start:.2f} seconds")
+        
+        # Close the socket
+        wrapped_socket.close()
+        
+        # Parse the response
+        response_text = response_data.decode('utf-8')
+        
+        # Check if response contains success status code
+        if "200 OK" in response_text:
+            print(f"Request successful! Total time: {time.time() - start_time:.2f} seconds")
+            
+            # Extract JSON response body
+            # HTTP response has headers and body separated by \r\n\r\n
+            response_parts = response_text.split("\r\n\r\n", 1)
+            if len(response_parts) > 1:
+                response_body = response_parts[1]
+                try:
+                    # Parse JSON response
+                    response_json = json.loads(response_body)
+                    return response_json
+                except json.JSONDecodeError as e:
+                    print(f"Error parsing JSON response: {e}")
+                    print(f"Response body: {response_body[:200]}...")
+                    return None
+            else:
+                print(f"Invalid response format: {response_text[:200]}...")
+                return None
         else:
-            print(f"Error: {response.status_code}")
-            print(response.text)
+            print(f"Server returned non-200 status. Response: {response_text[:200]}...")
             return None
             
-     except Exception as e:
-        print(f"Exception occurred: {str(e)}")
+     except socket.timeout:
+        print(f"Socket operation timed out after {time.time() - start_time:.2f} seconds")
         return None
+     except socket.error as e:
+        print(f"Socket error: {e}")
+        return None
+     except Exception as e:
+        print(f"Unexpected error: {type(e).__name__}: {str(e)}")
+        return None
+    
+    
+    def check_server_health(self, base_url="https://fypserver.ngrok.app"):
+     # Extract hostname from URL
+     hostname = base_url.replace("https://", "").replace("http://", "").split("/")[0]
+     port = 443  # HTTPS port
+    
+     print(f"Checking server health at {hostname}:{port} using raw sockets...")
+     start_time = time.time()
+    
+     try:
+        # Create raw socket connection
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.settimeout(5)  # 5 second timeout
+        
+        # Wrap with SSL for HTTPS
+        context = ssl.create_default_context()
+        wrapped_socket = context.wrap_socket(sock, server_hostname=hostname)
+        
+        # Connect to the server
+        wrapped_socket.connect((hostname, port))
+        print(f"Socket connected in {time.time() - start_time:.2f} seconds")
+        
+        # Prepare a simple HTTP GET request
+        request = (
+            f"GET /health HTTP/1.1\r\n"
+            f"Host: {hostname}\r\n"
+            f"Connection: close\r\n\r\n"
+        )
+        
+        # Send the request
+        send_start = time.time()
+        wrapped_socket.sendall(request.encode())
+        print(f"Request sent in {time.time() - send_start:.2f} seconds")
+        
+        # Receive the response
+        recv_start = time.time()
+        response_data = b""
+        while True:
+            chunk = wrapped_socket.recv(4096)
+            if not chunk:
+                break
+            response_data += chunk
+        
+        print(f"Response received in {time.time() - recv_start:.2f} seconds")
+        
+        # Close the socket
+        wrapped_socket.close()
+        
+        # Parse the response to check if it's healthy
+        response_text = response_data.decode('utf-8')
+        
+        # Check if response contains success status code
+        if "200 OK" in response_text:
+            print(f"Server is healthy! Response: {response_text}")
+            print(f"Total time: {time.time() - start_time:.2f} seconds")
+            return True
+        else:
+            print(f"Server returned non-200 status. Response: {response_text[:100]}")
+            return False
+            
+     except socket.timeout:
+        print(f"Socket operation timed out after {time.time() - start_time:.2f} seconds")
+        return False
+     except socket.error as e:
+        print(f"Socket error: {e}")
+        return False
+     except Exception as e:
+        print(f"Unexpected error: {type(e).__name__}: {str(e)}")
+        return False

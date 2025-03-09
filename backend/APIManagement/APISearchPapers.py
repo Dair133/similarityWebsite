@@ -661,8 +661,5 @@ class APISearchPapersClass:
  
  
  
-    # def return_found_papers(self,search_terms, api_key_semantic):
-    #     papersReturnedThroughSearch = self.search_papers_parallel(search_terms, api_key_semantic)
-    #     openAlexPapers = self.search_papers_parallel_ALEX(search_terms,desired_papers=1)
-    #     papersReturnedThroughSearch.extend(openAlexPapers)
+
         

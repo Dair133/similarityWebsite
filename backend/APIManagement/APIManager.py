@@ -3,7 +3,7 @@
 import logging
 import time
 from flask import Blueprint, request, jsonify
-from typing import Dict, Any
+from typing import Dict, Any, List
 import numpy as np
 import torch
 from werkzeug.utils import secure_filename
@@ -99,7 +99,7 @@ class APIManagerClass:
         return semanticScholarPapers
     # NO api key required for openalex
     def return_paper_list_from_openAlex(self, search_terms):
-        openAlexPapers = self.searchPapersAPI.search_papers_parallel_ALEX(search_terms,desired_papers=1)
+        openAlexPapers = self.searchPapersAPI.search_papers_parallel_ALEX(search_terms,desired_papers=50)
         return openAlexPapers
     
     
@@ -107,7 +107,8 @@ class APIManagerClass:
         # Combine both sets of papers and return
         search_terms = self.searchPapersAPI.prepare_search_terms(paperSearchTermsAndTitle, parsedSeedAuthorList)
         
-        semanticScholarPapers = self.return_paper_list_from_semanticScholar(search_terms, api_key_semanmtic)
+        author_terms = [item['term'] for item in search_terms if item['type'] == 'author']
+        semanticScholarPapers = self.return_paper_list_from_semanticScholar(author_terms, api_key_semanmtic)
         
         openAlexPapers = self.return_paper_list_from_openAlex(search_terms)
         
@@ -116,7 +117,48 @@ class APIManagerClass:
         return semanticScholarPapers
     
     
-    def external_scibert(self, text:str):
-        scibertEmbedding = self.personalPCClass.test_local_server(abstract_text = text, url="http://localhost:5000/embed")
+    # Takes in a single seed paper and returns a single scibert embedding
+    def get_single_scibert_embedding(self, generalPaperInfo, ngrok_domain_name:str):
+        seedAbstract = generalPaperInfo['abstract']
+        self.personalPCClass.check_server_health(base_url=ngrok_domain_name)
+        scibertEmbedding = self.personalPCClass.get_single_scibert(abstract_text = seedAbstract, base_url=ngrok_domain_name)
         return scibertEmbedding
-        
+    
+    
+    
+    def get_batch_scibert_embeddings(self, papersReturnedThroughSearch):
+        # Now we need to form go through each paper and form an abstract title Dict
+        title_abstract_dict = {}
+        for paper in papersReturnedThroughSearch:
+            paperAbstract = paper['paper_info']['abstract']
+            paperTitle = paper['paper_info']['title']
+            title_abstract_dict[paperTitle] = paperAbstract
+
+        # Now that we have a paper abstract dict we can pas it to get our batch scibert embeddings       
+        # We can use our title to query for our abstract, this is just so that we make sure that SciBert + abstract are paired
+        # correctly , we dont want our indices to messup and for the wrong scibert to be paired with the wrong title
+        # return value will be title, SciBert dict.
+        returnedJSONData = self.personalPCClass.send_batch_scibert_request(title_abstract_dict)
+        returnedEmbeddingsDict = returnedJSONData.get("embeddings", {})
+        for paper in papersReturnedThroughSearch:
+            paper['paper_info']['scibert'] = returnedEmbeddingsDict[paper['paper_info']['title']]
+            # print(paper['paper_info']['scibert'])
+            
+        return papersReturnedThroughSearch
+    
+    
+    
+    def compare_papers_batch(self, seedPaper, papersReturnedThroughSearch):
+     # Get comparison results
+     comparedPapers = self.personalPCClass.compare_papers_socket(seedPaper, papersReturnedThroughSearch)
+    
+     # Get the list of compared papers - this is a LIST of dictionaries
+     comparedPapersList = comparedPapers.get('compared_papers', [])
+    
+    # Print just the source_info for each paper (more controlled output)
+     for i, paper in enumerate(comparedPapersList):
+        print(f"Paper {i} source_info:", paper.get('source_info', {}))
+        # You can also access similarity scores
+        print(f"Paper {i} similarity:", paper.get('similarity_score', 0))
+    
+     return comparedPapers

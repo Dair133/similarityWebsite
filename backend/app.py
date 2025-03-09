@@ -44,6 +44,7 @@ api_key_gemini = os.getenv('GEMINI_API_KEY')
 api_key_semantic = os.getenv('SEMANTIC_API_KEY')
 api_key_claude = os.getenv('HAIKU_API_KEY')
 api_key_deepseek = os.getenv('DEEPSEEK_API_KEY')
+ngrok_domain_name = os.getenv('NGROK_DOMAIN')
 print(api_key_claude)
 upload_bp = Blueprint('upload', __name__)
 # Create an upload folder for temporary file storage
@@ -81,51 +82,41 @@ def process_pdf_route():
                     print('No Semantic Scholar data, getting ALL paper info from Haiku!')
                     result = apiManagerClass.return_general_paper_info_from_haiku(filepath,pdfName)
                   
-                generalPaperInfo['scibert'] = metricsCalculator.return_scibert_embeddings(generalPaperInfo, tokenizer, model)
+            
+                generalPaperInfo['scibert'] = apiManagerClass.get_single_scibert_embedding(generalPaperInfo, ngrok_domain_name)
+                # generalPaperInfo['scibert'] = metricsCalculator.return_scibert_embeddings(generalPaperInfo, tokenizer, model)
+                
                 # Returns the references citaitons and authors in a list, making themr eady to work with later on
                 parsedSeedReferenceList, parsedSeedCitationList,  parsedSeedAuthorList = metricsCalculator.return_attributes_lists(generalPaperInfo)
                 
+            
                 papersReturnedThroughSearch = apiManagerClass.return_found_papers(paperSearchTermsAndTitle,parsedSeedAuthorList, api_key_semantic)
-
-                # TEMPORARY to test external server
-                tempText = 'BIOLOGY IS AFUNDAMENTAL COMPONENT IN SCIENCE AS IS PHYSICS AND CHEMISTRY'
-                scibertEmbedding = apiManagerClass.external_scibert(tempText)
-                print(scibertEmbedding)
-
 
         
                 seedPaper = {
                     'search_type': 'seed_paper',
                     'paper_info': generalPaperInfo
                 }
-                                
+                print('loading poison pill')
                 papersReturnedThroughSearch = localDatabaseManager.load_poison_pill_papers(papersReturnedThroughSearch,"poison_pill_papers_With_SciBert.xlsx")
  
                 
-                startTime = time.time()
-                print("Calculating shared attributes...")
                 # This funcition call get shared refs, cites and authors for all papers
+                papersReturnedThroughSearch = apiManagerClass.get_batch_scibert_embeddings(papersReturnedThroughSearch)
                 papersReturnedThroughSearch = metricsCalculator.calculate_shared_attributes(papersReturnedThroughSearch,parsedSeedReferenceList,parsedSeedCitationList, parsedSeedAuthorList,)   
 
                 print("Comparing papers...")
                 relativelySimilarPapers = processor.remove_duplicates(papersReturnedThroughSearch)
-                similarityResults = compare_papers(seedPaper, papersReturnedThroughSearch)
+   
+                
+                similarityResults = apiManagerClass.compare_papers_batch(seedPaper, papersReturnedThroughSearch)
+                #print("External similarity results are", externalSimilarityResults)
                 endTime = time.time()
                 print(f"Time taken for comparison: {endTime - startTime} seconds")
 
                 
-                # From returned papers and their simlarity score, get only relatively similar papers
-                startTime = time.time()
-                relativelySimilarPapers = metricsCalculator.apply_source_weights(similarityResults['compared_papers'])
-                relativelySimilarPapers = metricsCalculator.get_relatively_similar_papers(relativelySimilarPapers['compared_papers'])
+                relativelySimilarPapers = metricsCalculator.get_relatively_similar_papers(similarityResults['compared_papers'])
                 recommendations = metricsCalculator.get_recommendations(seedPaper, relativelySimilarPapers)
-                endTime = time.time()
-                print(f"Time taken for filtering similar papers: {endTime - startTime} seconds")
-                # Remove the 'scibert' attribute from relatively similar papers
-                for paper in relativelySimilarPapers:
-                    if 'scibert' in paper['paper_info']:
-                        del paper['paper_info']['scibert']
-        
         
                 # Remove the 'scibert' attribute from relatively similar papers
                 for paper in relativelySimilarPapers:
@@ -143,8 +134,10 @@ def process_pdf_route():
                 return jsonify(result), 200
                    
         except Exception as e:
+                import traceback
                 error_message = f"Error processing request: {str(e)}"
-                print(f"Detailed error: {error_message}")  # Enhanced error logging
+                detailed_error = traceback.format_exc()
+                print(f"Detailed error: {detailed_error}")  # Enhanced error logging
                 
                 # Clean up if file exists
                 if os.path.exists(filepath):
@@ -152,7 +145,8 @@ def process_pdf_route():
                     
                 return jsonify({
                     'error': error_message,
-                    'status': 'error'
+                    'status': 'error',
+                    'traceback': detailed_error
                 }), 500
 
     except Exception as e:
