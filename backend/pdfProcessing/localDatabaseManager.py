@@ -5,7 +5,7 @@ import re
 from typing import Dict, Optional, Any
 import pandas as pd
 from pathlib import Path
-
+import os
 
 class LocalDatabaseManager:
         # Every local excel file will have the following info about the paper
@@ -21,9 +21,7 @@ class LocalDatabaseManager:
     The Excel file should be located in a 'poisonPill' folder in the same directory as this script.
     """
      try:
-        import pandas as pd
-        from pathlib import Path
-        import os
+
         
         # Get the directory where the LocalDatabaseManager class is defined
         module_dir = os.path.dirname(os.path.abspath(__file__))

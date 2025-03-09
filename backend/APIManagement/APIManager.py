@@ -99,7 +99,7 @@ class APIManagerClass:
         return semanticScholarPapers
     # NO api key required for openalex
     def return_paper_list_from_openAlex(self, search_terms):
-        openAlexPapers = self.searchPapersAPI.search_papers_parallel_ALEX(search_terms,desired_papers=1)
+        openAlexPapers = self.searchPapersAPI.search_papers_parallel_ALEX(search_terms,desired_papers=50)
         return openAlexPapers
     
     
@@ -107,7 +107,8 @@ class APIManagerClass:
         # Combine both sets of papers and return
         search_terms = self.searchPapersAPI.prepare_search_terms(paperSearchTermsAndTitle, parsedSeedAuthorList)
         
-        semanticScholarPapers = self.return_paper_list_from_semanticScholar(search_terms, api_key_semanmtic)
+        author_terms = [item['term'] for item in search_terms if item['type'] == 'author']
+        semanticScholarPapers = self.return_paper_list_from_semanticScholar(author_terms, api_key_semanmtic)
         
         openAlexPapers = self.return_paper_list_from_openAlex(search_terms)
         

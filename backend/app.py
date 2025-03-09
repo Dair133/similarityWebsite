@@ -89,6 +89,7 @@ def process_pdf_route():
                 # Returns the references citaitons and authors in a list, making themr eady to work with later on
                 parsedSeedReferenceList, parsedSeedCitationList,  parsedSeedAuthorList = metricsCalculator.return_attributes_lists(generalPaperInfo)
                 
+            
                 papersReturnedThroughSearch = apiManagerClass.return_found_papers(paperSearchTermsAndTitle,parsedSeedAuthorList, api_key_semantic)
 
         
