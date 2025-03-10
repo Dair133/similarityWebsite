@@ -165,6 +165,15 @@ def process_pdf_route():
         }), 500
 
 
+
+
+
+
+
+
+
+
+
 # Add the project root directory to Python path for proper imports
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.append(project_root)
