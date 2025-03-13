@@ -112,9 +112,9 @@ class APIManagerClass:
         
         openAlexPapers = self.return_paper_list_from_openAlex(search_terms)
         
-        semanticScholarPapers.extend(openAlexPapers)
+        #semanticScholarPapers.extend(openAlexPapers)
         
-        return semanticScholarPapers
+        return openAlexPapers
     
     
     # Takes in a single seed paper and returns a single scibert embedding
