@@ -4,12 +4,13 @@ import * as d3 from 'd3-force';
 
 function NodeGraph({ results, toggleGraphView }) {
     const [graphData, setGraphData] = useState({ nodes: [], links: [] });
+    const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+    const containerRef = useRef(null);
     const fgRef = useRef(null);
 
     const styles = {
         container: {
             width: '75%',
-            backgroundColor: '#f5f5f5',
             height: '95vh',
             padding: '2rem',
             boxSizing: 'border-box',
@@ -55,6 +56,29 @@ function NodeGraph({ results, toggleGraphView }) {
             borderRadius: '50%'
         }
     };
+
+    // Update dimensions on mount and window resize
+    useEffect(() => {
+        const updateDimensions = () => {
+            if (containerRef.current) {
+                const { width, height } = containerRef.current.getBoundingClientRect();
+                // Account for padding and other elements
+                setDimensions({
+                    width: width - 40, // Subtract padding from container
+                    height: height - 80 // Subtract header and padding
+                });
+            }
+        };
+
+        // Initialize dimensions
+        updateDimensions();
+
+        // Add resize listener
+        window.addEventListener('resize', updateDimensions);
+
+        // Clean up
+        return () => window.removeEventListener('resize', updateDimensions);
+    }, []);
 
     useEffect(() => {
         if (!results || !results.similarity_results) {
@@ -141,9 +165,9 @@ function NodeGraph({ results, toggleGraphView }) {
     // Update force simulation to better represent similarity distances
     useEffect(() => {
         if (fgRef.current && graphData.nodes.length > 0) {
-            // Get the graph dimensions
-            const graphWidth = fgRef.current.graphWidth || window.innerWidth * 0.5 - 80;
-            const graphHeight = fgRef.current.graphHeight || window.innerHeight * 0.95 - 120;
+            // Use the dynamically calculated dimensions
+            const graphWidth = dimensions.width;
+            const graphHeight = dimensions.height;
             
             // Configure link force with rank-based distance calculation
             const linkForce = fgRef.current.d3Force('link');
@@ -218,7 +242,7 @@ function NodeGraph({ results, toggleGraphView }) {
             // Reheat the simulation with high alpha for complete reorganization
             fgRef.current.d3ReheatSimulation(1.0);
         }
-    }, [graphData]);
+    }, [graphData, dimensions]); // Add dimensions as dependency
 
     // Define node rendering
     const nodeCanvasObject = (node, ctx, globalScale) => {
@@ -313,7 +337,7 @@ function NodeGraph({ results, toggleGraphView }) {
     );
 
     return (
-        <div style={styles.container}>
+        <div ref={containerRef} style={styles.container}>
             <div style={styles.header}>
                 <h2 style={styles.title}>Paper Similarity Network</h2>
                 <button style={styles.button} onClick={toggleGraphView}>
@@ -323,24 +347,32 @@ function NodeGraph({ results, toggleGraphView }) {
 
             <Legend />
 
-            <ForceGraph2D
-                ref={fgRef}
-                graphData={graphData}
-                nodeRelSize={1}
-                linkWidth={link => link.width}
-                linkColor={link => link.color}
-                nodeCanvasObject={nodeCanvasObject}
-                nodePointerAreaPaint={(node, color, ctx) => {
-                    const nodeR = Math.sqrt(node.val) * 2;
-                    ctx.fillStyle = color;
-                    ctx.beginPath();
-                    ctx.arc(node.x, node.y, nodeR + 5, 0, 2 * Math.PI);
-                    ctx.fill();
-                }}
-                cooldownTicks={250}  // Increased for better stabilization
-                width={window.innerWidth * 0.5 - 80}
-                height={window.innerHeight * 0.95 - 120}
-            />
+            {dimensions.width > 0 && dimensions.height > 0 && (
+                <ForceGraph2D
+                    ref={fgRef}
+                    graphData={graphData}
+                    nodeRelSize={1}
+                    linkWidth={link => link.width}
+                    linkColor={link => link.color}
+                    nodeCanvasObject={nodeCanvasObject}
+                    nodePointerAreaPaint={(node, color, ctx) => {
+                        const nodeR = Math.sqrt(node.val) * 2;
+                        ctx.fillStyle = color;
+                        ctx.beginPath();
+                        ctx.arc(node.x, node.y, nodeR + 5, 0, 2 * Math.PI);
+                        ctx.fill();
+                    }}
+                    cooldownTicks={250}  // Increased for better stabilization
+                    width={dimensions.width}
+                    height={dimensions.height}
+                    onResize={() => {
+                        // Force graph reheat on resize
+                        if (fgRef.current) {
+                            fgRef.current.d3ReheatSimulation();
+                        }
+                    }}
+                />
+            )}
         </div>
     );
 }

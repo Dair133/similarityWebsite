@@ -313,19 +313,16 @@ class APISearchPapersClass:
             
             
     def search_papers_parallel_SEMANTIC(self, search_terms: List[Dict], api_key: str) -> List[Dict]:
+
      def search_single_term(term_info: Dict) -> List[Dict]:
          try:
-            if not term_info or 'term' not in term_info:
-                print(f"Invalid term_info: {term_info}")
-                return []
-                
             url = "https://api.semanticscholar.org/graph/v1/paper/search"
             headers = {"x-api-key": api_key}
             fields = "title,abstract,year,citationCount,authors.name,citations.title,references.title"
             
             params = {
                 "query": term_info['term'],
-                "limit": 20,  # Increased from 10 to have more candidates to filter
+                "limit": 20,  
                 "fields": fields
             }
             

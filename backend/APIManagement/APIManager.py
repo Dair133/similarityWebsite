@@ -107,14 +107,14 @@ class APIManagerClass:
         # Combine both sets of papers and return
         search_terms = self.searchPapersAPI.prepare_search_terms(paperSearchTermsAndTitle, parsedSeedAuthorList)
         
-        author_terms = [item['term'] for item in search_terms if item['type'] == 'author']
+        author_terms = [{'term': item['term'], 'type': 'author'} for item in search_terms if item['type'] == 'author']
         semanticScholarPapers = self.return_paper_list_from_semanticScholar(author_terms, api_key_semanmtic)
         
         openAlexPapers = self.return_paper_list_from_openAlex(search_terms)
         
-        semanticScholarPapers.extend(openAlexPapers)
+        #semanticScholarPapers.extend(openAlexPapers)
         
-        return semanticScholarPapers
+        return openAlexPapers
     
     
     # Takes in a single seed paper and returns a single scibert embedding
