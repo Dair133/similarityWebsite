@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import FadeIn from 'react-fade-in';
 
-function ListResults({ results, toggleGraphView, setParentResults }) {
+function ListResults({ results, toggleGraphView, setParentResults, showGraph }) {
   console.log(results);
   // Using { results } is the equivalent of doing
   // const results = props.results;
@@ -10,13 +10,13 @@ function ListResults({ results, toggleGraphView, setParentResults }) {
   const [localResults, setLocalResults] = useState(null);
   const [tooltipVisible, setTooltipVisible] = useState({});
 
-  // Inline styling for the component
+  // Inline styling for the component with original dark blue shades
   const styles = {
     container: {
       width: '25%',
       height: '95vh',
-      backgroundColor: '#10253E', // Deep Navy instead of black
-      color: '#F7F3E9', // Ivory instead of white
+      backgroundColor: '#10253E', // Original Deep Navy
+      color: '#F7F3E9', // Ivory unchanged
       padding: '2%',
       boxSizing: 'border-box',
       overflow: 'auto',
@@ -24,10 +24,48 @@ function ListResults({ results, toggleGraphView, setParentResults }) {
     },
     title: {
       fontSize: '24px',
-      color: '#F7F3E9', // Ivory
+      color: '#F7F3E9', // Ivory unchanged
       marginBottom: '20px',
       fontFamily: '"Montserrat", sans-serif',
       fontWeight: '600',
+    },
+    // Toggle view styles
+    toggleContainer: {
+      marginBottom: '20px',
+    },
+    switchContainer: {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      width: '260px',
+      height: '40px',
+      backgroundColor: '#14304D', // Original navy shade
+      borderRadius: '20px',
+      padding: '2px',
+      position: 'relative',
+    },
+    switchOption: {
+      flex: 1,
+      textAlign: 'center',
+      padding: '8px 16px',
+      cursor: 'pointer',
+      zIndex: 2,
+      transition: 'color 0.3s',
+      userSelect: 'none',
+      color: '#81A4CD', // Original light blue
+    },
+    activeOption: {
+      color: 'white',
+    },
+    slider: {
+      position: 'absolute',
+      top: '2px',
+      bottom: '2px',
+      width: '50%',
+      backgroundColor: '#3E7CB9', // Original steel blue
+      borderRadius: '18px',
+      transition: 'left 0.3s ease-in-out',
+      zIndex: 1,
     },
     uploadArea: {
       width: '100%',
@@ -38,16 +76,16 @@ function ListResults({ results, toggleGraphView, setParentResults }) {
     input: {
       width: '100%',
       padding: '10px',
-      border: '2px dashed #81A4CD', // Light blue for border
+      border: '2px dashed #81A4CD', // Original Light blue for border
       borderRadius: '4px',
       cursor: 'pointer',
-      backgroundColor: '#14304D', // Navy (lighter shade)
-      color: '#F7F3E9', // Ivory
+      backgroundColor: '#14304D', // Original Navy lighter shade
+      color: '#F7F3E9', // Ivory unchanged
       fontFamily: '"Source Sans Pro", sans-serif',
     },
     fileInfo: {
       marginTop: '10px',
-      color: '#EEE8D9', // Soft Ivory
+      color: '#EEE8D9', // Soft Ivory unchanged
       fontSize: '14px',
       fontFamily: '"Source Sans Pro", sans-serif',
     },
@@ -57,9 +95,9 @@ function ListResults({ results, toggleGraphView, setParentResults }) {
       textAlign: 'left',
     },
     button: {
-      backgroundColor: '#3E7CB9', // Steel Blue instead of green
+      backgroundColor: '#3E7CB9', // Original Steel Blue
       border: 'none',
-      color: '#F7F3E9', // Ivory
+      color: '#F7F3E9', // Ivory unchanged
       padding: '10px 20px',
       textAlign: 'center',
       textDecoration: 'none',
@@ -79,22 +117,22 @@ function ListResults({ results, toggleGraphView, setParentResults }) {
       fontFamily: '"Montserrat", sans-serif',
       fontSize: '20px',
       fontWeight: '600',
-      color: '#F7F3E9', // Ivory
+      color: '#F7F3E9', // Ivory unchanged
       marginTop: '25px',
       marginBottom: '15px',
     },
     listItem: {
-      backgroundColor: '#14304D', // Navy (lighter shade)
+      backgroundColor: '#14304D', // Original Navy lighter shade
       padding: '15px',
       marginBottom: '15px',
       borderRadius: '6px',
-      borderLeft: '3px solid #3E7CB9', // Steel Blue accent
+      borderLeft: '3px solid #3E7CB9', // Original Steel Blue accent
     },
     paperTitle: {
       fontFamily: '"Montserrat", sans-serif',
       fontSize: '18px',
       fontWeight: '600',
-      color: '#EEE8D9', // Soft Ivory for contrast
+      color: '#EEE8D9', // Soft Ivory unchanged
       marginBottom: '10px',
     },
     paperInfo: {
@@ -102,24 +140,24 @@ function ListResults({ results, toggleGraphView, setParentResults }) {
       fontSize: '14px',
       lineHeight: '1.6',
       marginBottom: '8px',
-      color: '#F7F3E9', // Ivory
+      color: '#F7F3E9', // Ivory unchanged
     },
     paperMetric: {
-      color: '#81A4CD', // Light Blue for metrics
+      color: '#81A4CD', // Original Light Blue for metrics
       fontWeight: '600',
     },
     paperAbstract: {
       fontFamily: '"Source Sans Pro", sans-serif',
       fontSize: '15px',
       lineHeight: '1.6',
-      color: '#F7F3E9', // Ivory
+      color: '#F7F3E9', // Ivory unchanged
       marginTop: '10px',
       marginBottom: '5px',
     },
     overlapContainer: {
-      backgroundColor: '#14304D',
+      backgroundColor: '#14304D', // Original
       borderRadius: '6px',
-      border: '1px solid #3E7CB9',
+      border: '1px solid #3E7CB9', // Original
       marginBottom: '15px',
       marginTop: '10px',
     },
@@ -127,14 +165,14 @@ function ListResults({ results, toggleGraphView, setParentResults }) {
       display: 'flex',
       alignItems: 'center',
       padding: '8px 12px',
-      backgroundColor: '#1A3A5F',
-      borderBottom: '1px solid #3E7CB9',
+      backgroundColor: '#1A3A5F', // Original
+      borderBottom: '1px solid #3E7CB9', // Original
       borderRadius: '6px 6px 0 0',
     },
     overlapTitle: {
       fontFamily: '"Montserrat", sans-serif',
       fontWeight: '600',
-      color: '#F7F3E9',
+      color: '#F7F3E9', // Unchanged
       margin: 0,
       fontSize: '14px',
     },
@@ -142,8 +180,8 @@ function ListResults({ results, toggleGraphView, setParentResults }) {
       marginLeft: '8px',
       width: '16px',
       height: '16px',
-      backgroundColor: '#3E7CB9',
-      color: '#F7F3E9',
+      backgroundColor: '#3E7CB9', // Original
+      color: '#F7F3E9', // Unchanged
       borderRadius: '50%',
       display: 'flex',
       alignItems: 'center',
@@ -152,14 +190,13 @@ function ListResults({ results, toggleGraphView, setParentResults }) {
       cursor: 'pointer',
       position: 'relative',
     },
-    // Replace your current tooltip style with this
     tooltip: {
       position: 'absolute',
-      backgroundColor: '#14304D',
-      border: '1px solid #3E7CB9',
+      backgroundColor: '#14304D', // Original
+      border: '1px solid #3E7CB9', // Original
       borderRadius: '4px',
       padding: '8px 12px',
-      color: '#F7F3E9',
+      color: '#F7F3E9', // Unchanged
       fontSize: '12px',
       width: '200px',
       top: '20px',
@@ -177,8 +214,8 @@ function ListResults({ results, toggleGraphView, setParentResults }) {
     overlapTag: {
       display: 'inline-block',
       padding: '6px 12px',
-      backgroundColor: '#3E7CB9',
-      color: '#F7F3E9',
+      backgroundColor: '#3E7CB9', // Original
+      color: '#F7F3E9', // Unchanged
       borderRadius: '4px',
       fontSize: '13px',
       fontFamily: '"Source Sans Pro", sans-serif',
@@ -187,20 +224,20 @@ function ListResults({ results, toggleGraphView, setParentResults }) {
     overlapTypeLabel: {
       marginLeft: '8px',
       fontSize: '12px',
-      color: '#81A4CD',
+      color: '#81A4CD', // Original
     },
     overlapItem: {
       marginBottom: '8px',
     },
     divider: {
       height: '1px',
-      backgroundColor: '#2C4C72',
+      backgroundColor: '#2C4C72', // Original
       margin: '12px 0',
       opacity: 0.7,
     },
     sectionLabel: {
       fontSize: '13px',
-      color: '#81A4CD',
+      color: '#81A4CD', // Original
       fontFamily: '"Montserrat", sans-serif',
       fontWeight: '500',
       marginBottom: '8px',
@@ -208,8 +245,8 @@ function ListResults({ results, toggleGraphView, setParentResults }) {
     authorTag: {
       display: 'inline-block',
       padding: '5px 10px',
-      backgroundColor: '#38729E',
-      color: '#F7F3E9',
+      backgroundColor: '#38729E', // Original
+      color: '#F7F3E9', // Unchanged
       borderRadius: '4px',
       fontSize: '13px',
       fontFamily: '"Source Sans Pro", sans-serif',
@@ -308,7 +345,6 @@ function ListResults({ results, toggleGraphView, setParentResults }) {
       },
       abstract_info: "Fake abstract information.",
       similarity_results: fakePapers,
-      // Add this to match your expected structure
       test: {
         compared_papers: fakePapers
       }
@@ -427,14 +463,6 @@ function ListResults({ results, toggleGraphView, setParentResults }) {
                 </div>
               </>
             )}
-
-
-
-
-
-
-
-
           {/* Show message if no overlap */}
           {!hasMethodology && !hasSharedAuthors && (
             <div style={{ color: '#81A4CD', fontStyle: 'italic', fontSize: '13px' }}>
@@ -448,6 +476,40 @@ function ListResults({ results, toggleGraphView, setParentResults }) {
 
   return (
     <div style={styles.container}>
+      {/* Toggle component moved here from ParentDashboard */}
+      <div style={styles.toggleContainer}>
+        <div style={styles.switchContainer}>
+          <span
+            style={{
+              ...styles.switchOption,
+              ...(!showGraph ? styles.activeOption : {}),
+            }}
+            onClick={() => {
+              if (showGraph) toggleGraphView();
+            }}
+          >
+            PDF View
+          </span>
+          <span
+            style={{
+              ...styles.switchOption,
+              ...(showGraph ? styles.activeOption : {}),
+            }}
+            onClick={() => {
+              if (!showGraph) toggleGraphView();
+            }}
+          >
+            Node Graph View
+          </span>
+          <div
+            style={{
+              ...styles.slider,
+              left: showGraph ? 'calc(50% - 2px)' : '2px',
+            }}
+          />
+        </div>
+      </div>
+
       <h2 style={styles.title}>List Of Results</h2>
       <button style={styles.button} onClick={toggleGraphView}>
         View Graph

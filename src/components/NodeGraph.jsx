@@ -338,14 +338,9 @@ function NodeGraph({ results, toggleGraphView }) {
 
     return (
         <div ref={containerRef} style={styles.container}>
-            <div style={styles.header}>
-                <h2 style={styles.title}>Paper Similarity Network</h2>
-                <button style={styles.button} onClick={toggleGraphView}>
-                    Switch to Seed Paper View
-                </button>
-            </div>
 
-            <Legend />
+
+            {/* <Legend /> */}
 
             {dimensions.width > 0 && dimensions.height > 0 && (
                 <ForceGraph2D
