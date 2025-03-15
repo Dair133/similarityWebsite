@@ -1,22 +1,19 @@
 import React, { useState } from 'react';
 import FadeIn from 'react-fade-in';
+import EnhancedPaperView from './EnhancedPaperView'; // Import the enhanced view component
 
 function ListResults({ results, toggleGraphView, setParentResults, showGraph }) {
   console.log(results);
-  // Using { results } is the equivalent of doing
-  // const results = props.results;
-  // Here we are using Javascript object destructuring
-
   const [localResults, setLocalResults] = useState(null);
   const [tooltipVisible, setTooltipVisible] = useState({});
+  const [selectedPaper, setSelectedPaper] = useState(null); // Track selected paper
 
-  // Inline styling for the component with original dark blue shades
   const styles = {
     container: {
       width: '25%',
       height: '95vh',
-      backgroundColor: '#10253E', // Original Deep Navy
-      color: '#F7F3E9', // Ivory unchanged
+      backgroundColor: '#10253E',
+      color: '#F7F3E9',
       padding: '2%',
       boxSizing: 'border-box',
       overflow: 'auto',
@@ -24,12 +21,11 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
     },
     title: {
       fontSize: '24px',
-      color: '#F7F3E9', // Ivory unchanged
+      color: '#F7F3E9',
       marginBottom: '20px',
       fontFamily: '"Montserrat", sans-serif',
       fontWeight: '600',
     },
-    // Toggle view styles
     toggleContainer: {
       marginBottom: '20px',
     },
@@ -39,7 +35,7 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
       justifyContent: 'space-between',
       width: '260px',
       height: '40px',
-      backgroundColor: '#14304D', // Original navy shade
+      backgroundColor: '#14304D',
       borderRadius: '20px',
       padding: '2px',
       position: 'relative',
@@ -52,7 +48,7 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
       zIndex: 2,
       transition: 'color 0.3s',
       userSelect: 'none',
-      color: '#81A4CD', // Original light blue
+      color: '#81A4CD',
     },
     activeOption: {
       color: 'white',
@@ -62,7 +58,7 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
       top: '2px',
       bottom: '2px',
       width: '50%',
-      backgroundColor: '#3E7CB9', // Original steel blue
+      backgroundColor: '#3E7CB9',
       borderRadius: '18px',
       transition: 'left 0.3s ease-in-out',
       zIndex: 1,
@@ -76,16 +72,16 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
     input: {
       width: '100%',
       padding: '10px',
-      border: '2px dashed #81A4CD', // Original Light blue for border
+      border: '2px dashed #81A4CD',
       borderRadius: '4px',
       cursor: 'pointer',
-      backgroundColor: '#14304D', // Original Navy lighter shade
-      color: '#F7F3E9', // Ivory unchanged
+      backgroundColor: '#14304D',
+      color: '#F7F3E9',
       fontFamily: '"Source Sans Pro", sans-serif',
     },
     fileInfo: {
       marginTop: '10px',
-      color: '#EEE8D9', // Soft Ivory unchanged
+      color: '#EEE8D9',
       fontSize: '14px',
       fontFamily: '"Source Sans Pro", sans-serif',
     },
@@ -95,9 +91,9 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
       textAlign: 'left',
     },
     button: {
-      backgroundColor: '#3E7CB9', // Original Steel Blue
+      backgroundColor: '#3E7CB9',
       border: 'none',
-      color: '#F7F3E9', // Ivory unchanged
+      color: '#F7F3E9',
       padding: '10px 20px',
       textAlign: 'center',
       textDecoration: 'none',
@@ -110,29 +106,28 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
       fontWeight: '500',
     },
     NodeGraphContainer: {
-      visibility: 'hidden'
+      visibility: 'hidden',
     },
-    // New styles for better typography
     sectionHeading: {
       fontFamily: '"Montserrat", sans-serif',
       fontSize: '20px',
       fontWeight: '600',
-      color: '#F7F3E9', // Ivory unchanged
+      color: '#F7F3E9',
       marginTop: '25px',
       marginBottom: '15px',
     },
     listItem: {
-      backgroundColor: '#14304D', // Original Navy lighter shade
+      backgroundColor: '#14304D',
       padding: '15px',
       marginBottom: '15px',
       borderRadius: '6px',
-      borderLeft: '3px solid #3E7CB9', // Original Steel Blue accent
+      borderLeft: '3px solid #3E7CB9',
     },
     paperTitle: {
       fontFamily: '"Montserrat", sans-serif',
       fontSize: '18px',
       fontWeight: '600',
-      color: '#EEE8D9', // Soft Ivory unchanged
+      color: '#EEE8D9',
       marginBottom: '10px',
     },
     paperInfo: {
@@ -140,24 +135,24 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
       fontSize: '14px',
       lineHeight: '1.6',
       marginBottom: '8px',
-      color: '#F7F3E9', // Ivory unchanged
+      color: '#F7F3E9',
     },
     paperMetric: {
-      color: '#81A4CD', // Original Light Blue for metrics
+      color: '#81A4CD',
       fontWeight: '600',
     },
     paperAbstract: {
       fontFamily: '"Source Sans Pro", sans-serif',
       fontSize: '15px',
       lineHeight: '1.6',
-      color: '#F7F3E9', // Ivory unchanged
+      color: '#F7F3E9',
       marginTop: '10px',
       marginBottom: '5px',
     },
     overlapContainer: {
-      backgroundColor: '#14304D', // Original
+      backgroundColor: '#14304D',
       borderRadius: '6px',
-      border: '1px solid #3E7CB9', // Original
+      border: '1px solid #3E7CB9',
       marginBottom: '15px',
       marginTop: '10px',
     },
@@ -165,14 +160,14 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
       display: 'flex',
       alignItems: 'center',
       padding: '8px 12px',
-      backgroundColor: '#1A3A5F', // Original
-      borderBottom: '1px solid #3E7CB9', // Original
+      backgroundColor: '#1A3A5F',
+      borderBottom: '1px solid #3E7CB9',
       borderRadius: '6px 6px 0 0',
     },
     overlapTitle: {
       fontFamily: '"Montserrat", sans-serif',
       fontWeight: '600',
-      color: '#F7F3E9', // Unchanged
+      color: '#F7F3E9',
       margin: 0,
       fontSize: '14px',
     },
@@ -180,8 +175,8 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
       marginLeft: '8px',
       width: '16px',
       height: '16px',
-      backgroundColor: '#3E7CB9', // Original
-      color: '#F7F3E9', // Unchanged
+      backgroundColor: '#3E7CB9',
+      color: '#F7F3E9',
       borderRadius: '50%',
       display: 'flex',
       alignItems: 'center',
@@ -192,11 +187,11 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
     },
     tooltip: {
       position: 'absolute',
-      backgroundColor: '#14304D', // Original
-      border: '1px solid #3E7CB9', // Original
+      backgroundColor: '#14304D',
+      border: '1px solid #3E7CB9',
       borderRadius: '4px',
       padding: '8px 12px',
-      color: '#F7F3E9', // Unchanged
+      color: '#F7F3E9',
       fontSize: '12px',
       width: '200px',
       top: '20px',
@@ -206,38 +201,38 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
       opacity: 0,
       visibility: 'hidden',
       transition: 'opacity 0.2s, visibility 0.2s',
-      pointerEvents: 'none', // This prevents the tooltip from capturing mouse events
+      pointerEvents: 'none',
     },
     overlapContent: {
       padding: '12px',
     },
     overlapTag: {
       display: 'inline-block',
-      padding: '6px 12px',
-      backgroundColor: '#3E7CB9', // Original
-      color: '#F7F3E9', // Unchanged
+      padding: '5px 10px',
+      backgroundColor: '#38729E',
+      color: '#F7F3E9',
       borderRadius: '4px',
       fontSize: '13px',
       fontFamily: '"Source Sans Pro", sans-serif',
-      margin: '2px 0',
+      margin: '2px 4px 2px 0',
     },
     overlapTypeLabel: {
       marginLeft: '8px',
       fontSize: '12px',
-      color: '#81A4CD', // Original
+      color: '#81A4CD',
     },
     overlapItem: {
       marginBottom: '8px',
     },
     divider: {
       height: '1px',
-      backgroundColor: '#2C4C72', // Original
+      backgroundColor: '#2C4C72',
       margin: '12px 0',
       opacity: 0.7,
     },
     sectionLabel: {
       fontSize: '13px',
-      color: '#81A4CD', // Original
+      color: '#81A4CD',
       fontFamily: '"Montserrat", sans-serif',
       fontWeight: '500',
       marginBottom: '8px',
@@ -245,34 +240,32 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
     authorTag: {
       display: 'inline-block',
       padding: '5px 10px',
-      backgroundColor: '#38729E', // Original
-      color: '#F7F3E9', // Unchanged
+      backgroundColor: '#38729E',
+      color: '#F7F3E9',
       borderRadius: '4px',
       fontSize: '13px',
       fontFamily: '"Source Sans Pro", sans-serif',
       margin: '2px 4px 2px 0',
     },
+    enhancedViewButton: {
+      backgroundColor: '#A4BEDC',
+      color: '#10253E',
+      border: 'none',
+      padding: '8px 16px',
+      textAlign: 'center',
+      textDecoration: 'none',
+      display: 'block',
+      width: '100%',
+      fontSize: '14px',
+      margin: '10px 0 0 0',
+      cursor: 'pointer',
+      borderRadius: '4px',
+      fontFamily: '"Montserrat", sans-serif',
+      fontWeight: '500',
+    },
   };
 
-  // A helper to render the Semantic Scholar info (or any info object)
-  const renderSemanticScholarInfo = (info) => {
-    console.log(info);
-    if (!info) return null;
-    if (typeof info === 'string') {
-      return <div>{info}</div>;
-    }
-    return (
-      <div>
-        {Object.entries(info).map(([key, value]) => (
-          <div key={key}>
-            <strong>{key}:</strong> {JSON.stringify(value, null, 2)}
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  // Helper function to safely format authors
+  // Helper function to format authors
   const formatAuthors = (authors) => {
     if (!authors) return '';
     if (typeof authors === 'string') return authors;
@@ -280,87 +273,9 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
     return JSON.stringify(authors);
   };
 
-  const generateFakeResults = () => {
-    // Create some fake author names
-    const authorPool = [
-      "Zhang, L.",
-      "Smith, J.",
-      "Johnson, K.",
-      "Williams, R.",
-      "Brown, M.",
-      "Davis, T.",
-      "Miller, S.",
-      "Wilson, A.",
-      "Moore, D.",
-      "Taylor, P."
-    ];
-
-    const fakePapers = Array.from({ length: 10 }, (_, i) => {
-      // Generate random authors for each paper
-      const paperAuthorCount = Math.floor(Math.random() * 3) + 1;
-      const paperAuthors = [];
-      for (let j = 0; j < paperAuthorCount; j++) {
-        const randomIndex = Math.floor(Math.random() * authorPool.length);
-        if (!paperAuthors.includes(authorPool[randomIndex])) {
-          paperAuthors.push(authorPool[randomIndex]);
-        }
-      }
-
-      // Generate shared authors with seed paper (for odd indices, to vary the data)
-      const sharedAuthors = i % 2 === 1 ? [authorPool[0], authorPool[1]].slice(0, i % 3) : [];
-
-      return {
-        title: `Fake Paper Title ${i + 1}`,
-        id: `fake-id-${i + 1}`,
-        similarity_score: (1 - i * 0.1).toFixed(2), // Decreasing similarity
-        source_info: {
-          search_term: i % 2 === 0 ? "minimal perturbation computation" : ["adversarial example generation", "neural network vulnerability"],
-          search_type: i % 2 === 0 ? "core_methodology" : "conceptual_angles"
-        },
-        paper_info: {
-          title: `Fake Paper Title ${i + 1}`,
-          abstract: `This is a fake abstract for paper ${i + 1}. It's short and sweet.`,
-          authors: paperAuthors
-        },
-        comparison_metrics: {
-          shared_reference_count: Math.floor(Math.random() * 10),
-          shared_citation_count: Math.floor(Math.random() * 10),
-          shared_author_count: sharedAuthors.length,
-          shared_authors: sharedAuthors,
-          shared_references: i % 2 === 0 ?
-            ["Smith et al. (2019)", "Johnson & Lee (2020)", "Williams (2018)"] :
-            ["Brown et al. (2021)", "Davis (2019)", "Miller & Taylor (2020)",
-              "Wilson (2017)", "Moore & Zhang (2022)", "Additional paper 1", "Additional paper 2"]
-        }
-      };
-    });
-
-    const fakeResultsData = {
-      seed_paper: {
-        paper_info: {
-          title: "Seed Paper Title",
-          abstract: "This is a fake abstract for the seed paper.",
-          authors: [authorPool[0], authorPool[1], authorPool[2]]
-        }
-      },
-      abstract_info: "Fake abstract information.",
-      similarity_results: fakePapers,
-      test: {
-        compared_papers: fakePapers
-      }
-    };
-
-    setLocalResults(fakeResultsData);
-    setParentResults(fakeResultsData);
-  };
-
-  const displayResults = localResults || results;
-
   // Helper function to format source type text
   const formatSourceType = (sourceType) => {
     if (!sourceType) return '';
-
-    // Replace underscores with spaces and capitalize each word
     return sourceType
       .split('_')
       .map(word => word.charAt(0).toUpperCase() + word.slice(1))
@@ -378,7 +293,6 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
       paper.comparison_metrics.shared_authors &&
       paper.comparison_metrics.shared_authors.length > 0;
 
-    // Only show divider if both methodology and shared authors exist
     const showDivider = hasMethodology && hasSharedAuthors;
 
     return (
@@ -405,14 +319,13 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
           </div>
         </div>
         <div style={styles.overlapContent}>
-          {/* Methodology section */}
           {hasMethodology && (
             <>
               <div style={styles.sectionLabel}>Shared Methodology:</div>
               <div style={styles.overlapItem}>
                 <span style={styles.overlapTag}>
                   {Array.isArray(paper.source_info.search_term)
-                    ? paper.source_info.search_term[0] // Just take the first one if it's an array
+                    ? paper.source_info.search_term[0]
                     : paper.source_info.search_term}
                 </span>
                 <span style={styles.overlapTypeLabel}>
@@ -421,11 +334,7 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
               </div>
             </>
           )}
-
-          {/* Divider - only show if both methodology and authors exist */}
           {hasMethodology && hasSharedAuthors && <div style={styles.divider}></div>}
-
-          {/* Shared Authors section */}
           {hasSharedAuthors && (
             <>
               <div style={styles.sectionLabel}>Shared Authors:</div>
@@ -438,14 +347,11 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
               </div>
             </>
           )}
-          {/* Shared References section */}
           {paper.comparison_metrics &&
             paper.comparison_metrics.shared_references &&
             paper.comparison_metrics.shared_references.length > 0 && (
               <>
-                {/* Add divider if there's methodology or authors */}
                 {(hasMethodology || hasSharedAuthors) && <div style={styles.divider}></div>}
-
                 <div style={styles.sectionLabel}>Shared References:</div>
                 <div style={styles.overlapItem}>
                   <div style={{ display: 'flex', flexWrap: 'wrap' }}>
@@ -463,8 +369,7 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
                 </div>
               </>
             )}
-          {/* Show message if no overlap */}
-          {!hasMethodology && !hasSharedAuthors && (
+          {(!hasMethodology && !hasSharedAuthors) && (
             <div style={{ color: '#81A4CD', fontStyle: 'italic', fontSize: '13px' }}>
               No direct methodological or authorship overlap detected
             </div>
@@ -473,6 +378,97 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
       </div>
     );
   };
+
+  // Function to handle showing the enhanced view
+  const handleShowEnhancedView = (paper) => {
+    setSelectedPaper(paper);
+  };
+
+  // Function to handle going back to the list view
+  const handleBackToList = () => {
+    setSelectedPaper(null);
+  };
+
+  if (selectedPaper) {
+    // Wrap the enhanced view in the same container as the list
+    return (
+      <div style={styles.container}>
+        <EnhancedPaperView paper={selectedPaper} onBack={handleBackToList} />
+      </div>
+    );
+  }
+
+  // Helper function to generate fake results for testing
+  const generateFakeResults = () => {
+    const authorPool = [
+      "Zhang, L.",
+      "Smith, J.",
+      "Johnson, K.",
+      "Williams, R.",
+      "Brown, M.",
+      "Davis, T.",
+      "Miller, S.",
+      "Wilson, A.",
+      "Moore, D.",
+      "Taylor, P."
+    ];
+
+    const fakePapers = Array.from({ length: 10 }, (_, i) => {
+      const paperAuthorCount = Math.floor(Math.random() * 3) + 1;
+      const paperAuthors = [];
+      for (let j = 0; j < paperAuthorCount; j++) {
+        const randomIndex = Math.floor(Math.random() * authorPool.length);
+        if (!paperAuthors.includes(authorPool[randomIndex])) {
+          paperAuthors.push(authorPool[randomIndex]);
+        }
+      }
+
+      const sharedAuthors = i % 2 === 1 ? [authorPool[0], authorPool[1]].slice(0, i % 3) : [];
+
+      return {
+        paper_info: {
+          title: `Fake Paper Title ${i + 1}`,
+          abstract: `This is a fake abstract for paper ${i + 1}. It's short and sweet.`,
+          authors: paperAuthors,
+        },
+        similarity_score: (1 - i * 0.1).toFixed(2),
+        source_info: {
+          search_term: i % 2 === 0 ? "minimal perturbation computation" : ["adversarial example generation", "neural network vulnerability"],
+          search_type: i % 2 === 0 ? "core_methodology" : "conceptual_angles",
+        },
+        comparison_metrics: {
+          shared_reference_count: Math.floor(Math.random() * 10),
+          shared_citation_count: Math.floor(Math.random() * 10),
+          shared_author_count: sharedAuthors.length,
+          shared_authors: sharedAuthors,
+          shared_references: i % 2 === 0 ?
+            ["Smith et al. (2019)", "Johnson & Lee (2020)", "Williams (2018)"] :
+            ["Brown et al. (2021)", "Davis (2019)", "Miller & Taylor (2020)",
+             "Wilson (2017)", "Moore & Zhang (2022)", "Additional paper 1", "Additional paper 2"],
+        },
+      };
+    });
+
+    const fakeResultsData = {
+      seed_paper: {
+        paper_info: {
+          title: "Seed Paper Title",
+          abstract: "This is a fake abstract for the seed paper.",
+          authors: [authorPool[0], authorPool[1], authorPool[2]],
+        },
+      },
+      abstract_info: "Fake abstract information.",
+      similarity_results: fakePapers,
+      test: {
+        compared_papers: fakePapers,
+      },
+    };
+
+    setLocalResults(fakeResultsData);
+    setParentResults(fakeResultsData);
+  };
+
+  const displayResults = localResults || results;
 
   return (
     <div style={styles.container}>
@@ -511,9 +507,6 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
       </div>
 
       <h2 style={styles.title}>List Of Results</h2>
-      <button style={styles.button} onClick={toggleGraphView}>
-        View Graph
-      </button>
       <button style={styles.button} onClick={generateFakeResults}>
         Generate Examples
       </button>
@@ -540,7 +533,6 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
               {displayResults.similarity_results.map((paper, index) => (
                 <li key={index} style={styles.listItem}>
                   <div style={styles.paperTitle}>{paper.paper_info.title}</div>
-
                   {paper.paper_info.authors && (
                     <div style={styles.paperInfo}>
                       <strong>Authors: </strong>
@@ -548,7 +540,6 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
                     </div>
                   )}
 
-                  {/* Add the OverlapBox component here */}
                   <OverlapBox paper={paper} index={index} />
 
                   <div style={styles.paperInfo}>
@@ -565,6 +556,12 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
                   <div style={styles.paperAbstract}>
                     <strong>Abstract: </strong> {paper.paper_info.abstract}
                   </div>
+                  <button
+                    style={styles.enhancedViewButton}
+                    onClick={() => handleShowEnhancedView(paper)}
+                  >
+                    Enhanced Paper View
+                  </button>
                 </li>
               ))}
             </FadeIn>
