@@ -68,7 +68,9 @@ def process_pdf_route():
         # Will probably have to change to more generic 'extractPdfInfo', one function extract all necessary info for pdf.
         entireFuncionTime = time.time()
         try:    
-
+            # For using a returned paper as  a seed paper I could clikc 'use as seed apper' upon which I pass all the info about the  paper already gotten to the backend
+            # Simply skipping the pdf saving bit, then setting generalPaperInfo to the seed paper info
+            # The one issue here would be thatw e would NOT have access to the full pdf and hence the search terms would not be as accurate and the user could not be shown the pdf of the paper.
                 startTime = time.time()
                 generalPaperInfo,paperSearchTermsAndTitle = apiManagerClass.return_general_paper_info_from_semantic(filepath, pdfName, api_key_semantic, api_key_claude)
                 endTime = time.time()

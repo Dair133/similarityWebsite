@@ -1,13 +1,14 @@
 import React from 'react';
-
+import FadeIn from 'react-fade-in';
+import SimplePulseButton from './module/buttons/PulseButton';
 function EnhancedPaperView({ paper, onBack }) {
     const styles = {
         container: {
             backgroundColor: '#14304D',
-            padding: '15px',         
-            borderRadius: '6px',      
+            padding: '15px',
+            borderRadius: '6px',
             color: '#F7F3E9',
-            width: '100%',          
+            width: '100%',
             boxSizing: 'border-box',
         },
         title: {
@@ -54,6 +55,7 @@ function EnhancedPaperView({ paper, onBack }) {
             fontFamily: '"Montserrat", sans-serif',
             fontWeight: '500',
         },
+        interactionButton: { backgroundColor: '#f39c12', color: '#2c3e50', fontWeight: '700', padding: '10px 20px', borderRadius: '50px', textAlign: 'center', display: 'block', margin: '0 auto', cursor: 'pointer', fontFamily: '"Montserrat", sans-serif', fontSize: '16px', border: 'none', textTransform: 'uppercase', letterSpacing: '1px', transition: 'all 0.3s ease', boxShadow: '0 0 0 rgba(243, 156, 18, 0.4)', '&:hover': { animation: 'pulse 1.5s infinite' }, '@keyframes pulse': { '0%': { boxShadow: '0 0 0 0 rgba(243, 156, 18, 0.7)' }, '70%': { boxShadow: '0 0 0 10px rgba(243, 156, 18, 0)' }, '100%': { boxShadow: '0 0 0 0 rgba(243, 156, 18, 0)' } } },       
         overlapItem: {
             marginBottom: '8px',
         },
@@ -74,6 +76,7 @@ function EnhancedPaperView({ paper, onBack }) {
             fontFamily: '"Source Sans Pro", sans-serif',
             margin: '2px 4px 2px 0',
         },
+
     };
 
     // Helper function to safely format authors
@@ -94,71 +97,79 @@ function EnhancedPaperView({ paper, onBack }) {
     };
 
     return (
-        <div style={styles.container}>
-            <button style={styles.backButton} onClick={onBack}>Back to List</button>
-            <h2 style={styles.title}>{paper.paper_info.title}</h2>
-            <p style={styles.authors}>
-                <strong>Authors:</strong> {formatAuthors(paper.paper_info.authors)}
-            </p>
-            <p style={styles.abstract}>
-                <strong>Abstract:</strong> {paper.paper_info.abstract}
-            </p>
-            <div style={styles.section}>
-                <h3 style={styles.sectionTitle}>Similarity Metrics</h3>
-                <p>
-                    <strong>Similarity Score:</strong> <span style={styles.metric}>{paper.similarity_score}</span>
+        <FadeIn>
+            <div style={styles.container}>
+                <button style={styles.backButton} onClick={onBack}>← Back to List</button>
+                <h2 style={styles.title}>{paper.paper_info.title}</h2>
+                <p style={styles.authors}>
+                    <strong>Authors:</strong> {formatAuthors(paper.paper_info.authors)}
                 </p>
-                <p>
-                    <strong>Shared References:</strong> <span style={styles.metric}>{paper.comparison_metrics.shared_reference_count}</span>
+                <p style={styles.abstract}>
+                    <strong>Abstract:</strong> {paper.paper_info.abstract}
                 </p>
-                <p>
-                    <strong>Shared Citations:</strong> <span style={styles.metric}>{paper.comparison_metrics.shared_citation_count}</span>
-                </p>
-                <p>
-                    <strong>Shared Authors:</strong> <span style={styles.metric}>{paper.comparison_metrics.shared_author_count}</span>
-                </p>
-                <div style={styles.overlapItem}>
-                    {paper.comparison_metrics.shared_authors && paper.comparison_metrics.shared_authors.length > 0 && (
+                <div style={styles.section}>
+                    <h3 style={styles.sectionTitle}>Similarity Metrics</h3>
+                    <p>
+                        <strong>Similarity Score:</strong> <span style={styles.metric}>{paper.similarity_score}</span>
+                    </p>
+                    <p>
+                        <strong>Shared References:</strong> <span style={styles.metric}>{paper.comparison_metrics.shared_reference_count}</span>
+                    </p>
+                    <p>
+                        <strong>Shared Citations:</strong> <span style={styles.metric}>{paper.comparison_metrics.shared_citation_count}</span>
+                    </p>
+                    <p>
+                        <strong>Shared Authors:</strong> <span style={styles.metric}>{paper.comparison_metrics.shared_author_count}</span>
+                    </p>
+                    <div style={styles.overlapItem}>
+                        {paper.comparison_metrics.shared_authors && paper.comparison_metrics.shared_authors.length > 0 && (
+                            <>
+                                <div style={styles.sectionLabel}>Shared Authors:</div>
+                                <div style={{ display: 'flex', flexWrap: 'wrap' }}>
+                                    {paper.comparison_metrics.shared_authors.map((author, i) => (
+                                        <span key={i} style={styles.authorTag}>{author}</span>
+                                    ))}
+                                </div>
+                            </>
+                        )}
+                    </div>
+                    {paper.comparison_metrics.shared_references && paper.comparison_metrics.shared_references.length > 0 && (
                         <>
-                            <div style={styles.sectionLabel}>Shared Authors:</div>
-                            <div style={{ display: 'flex', flexWrap: 'wrap' }}>
-                                {paper.comparison_metrics.shared_authors.map((author, i) => (
-                                    <span key={i} style={styles.authorTag}>{author}</span>
-                                ))}
+                            <div style={styles.sectionLabel}>Shared References:</div>
+                            <div style={styles.overlapItem}>
+                                <div style={{ display: 'flex', flexWrap: 'wrap' }}>
+                                    {paper.comparison_metrics.shared_references.map((reference, i) => (
+                                        <span key={i} style={{ ...styles.authorTag, backgroundColor: '#2A5278' }}>
+                                            {reference}
+                                        </span>
+                                    ))}
+                                </div>
                             </div>
                         </>
                     )}
+                    {paper.comparison_metrics.shared_references.length == 0 && (
+                        <div style={styles.sectionLabel}>No shared references</div>
+                    )}
                 </div>
-                {paper.comparison_metrics.shared_references && paper.comparison_metrics.shared_references.length > 0 && (
-                    <>
-                        <div style={styles.sectionLabel}>Shared References:</div>
-                        <div style={styles.overlapItem}>
-                            <div style={{ display: 'flex', flexWrap: 'wrap' }}>
-                                {paper.comparison_metrics.shared_references.slice(0, 5).map((reference, i) => (
-                                    <span key={i} style={{ ...styles.authorTag, backgroundColor: '#2A5278' }}>
-                                        {reference}
-                                    </span>
-                                ))}
-                                {paper.comparison_metrics.shared_references.length > 5 && (
-                                    <span style={{ color: '#81A4CD', fontSize: '13px', marginLeft: '5px', alignSelf: 'center' }}>
-                                        ... {paper.comparison_metrics.shared_references.length - 5} more
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-                    </>
+                {paper.source_info && (
+                    <div style={styles.section}>
+                        <h3 style={styles.sectionTitle}>Source Information</h3>
+                        <p>
+                            <strong>Search Term:</strong> {Array.isArray(paper.source_info.search_term) ? paper.source_info.search_term.join(', ') : paper.source_info.search_term}
+                        </p>
+                        <p><strong>Search Type:</strong> {formatSourceType(paper.source_info.search_type)}</p>
+                    </div>
                 )}
+                <div>
+                    <h2 style={styles.title}>Actions</h2>
+                    <SimplePulseButton onclick={null} buttonText={"Why are these papers similar? 🔎 "} />
+                    <br></br>
+                    <SimplePulseButton onclick={null} buttonText={"Use this paper as seed paper 🌱 "} />
+                    <br></br>
+                    <SimplePulseButton onclick={null} buttonText={"Find Paper Online 🌍"} />
+                                    </div>
             </div>
-            {paper.source_info && (
-                <div style={styles.section}>
-                    <h3 style={styles.sectionTitle}>Source Information</h3>
-                    <p>
-                        <strong>Search Term:</strong> {Array.isArray(paper.source_info.search_term) ? paper.source_info.search_term.join(', ') : paper.source_info.search_term}
-                    </p>
-                    <p><strong>Search Type:</strong> {formatSourceType(paper.source_info.search_type)}</p>
-                </div>
-            )}
-        </div>
+        </FadeIn>
     );
 }
 

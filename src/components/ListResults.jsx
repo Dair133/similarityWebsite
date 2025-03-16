@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import FadeIn from 'react-fade-in';
 import EnhancedPaperView from './EnhancedPaperView'; // Import the enhanced view component
-
+import SimplePulseButton from './module/buttons/PulseButton';
 function ListResults({ results, toggleGraphView, setParentResults, showGraph }) {
   console.log(results);
   const [localResults, setLocalResults] = useState(null);
@@ -444,7 +444,7 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
           shared_references: i % 2 === 0 ?
             ["Smith et al. (2019)", "Johnson & Lee (2020)", "Williams (2018)"] :
             ["Brown et al. (2021)", "Davis (2019)", "Miller & Taylor (2020)",
-             "Wilson (2017)", "Moore & Zhang (2022)", "Additional paper 1", "Additional paper 2"],
+              "Wilson (2017)", "Moore & Zhang (2022)", "Additional paper 1", "Additional paper 2"],
         },
       };
     });
@@ -556,12 +556,23 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
                   <div style={styles.paperAbstract}>
                     <strong>Abstract: </strong> {paper.paper_info.abstract}
                   </div>
-                  <button
+                  {/* <button
                     style={styles.enhancedViewButton}
                     onClick={() => handleShowEnhancedView(paper)}
                   >
                     Enhanced Paper View
-                  </button>
+                  </button> */}
+                  <SimplePulseButton
+                    buttonText={"Enhanced Paper View"}
+                    onClick={() => handleShowEnhancedView(paper)}
+                    customStyle={{
+                      fontSize: '14px',
+                      width: '200px',
+                      fontWeight:'700',
+                      backgroundColor: '#94B4DC',
+                      width: '80%',
+                    }}
+                  />
                 </li>
               ))}
             </FadeIn>

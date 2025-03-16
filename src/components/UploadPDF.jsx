@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import PDFViewer from './PDFViewer';
-
+import UploadText from './UploadText'
 function UploadPDF({ onResultsUpdate, toggleGraphView, pdfFile, onPdfUpload, onClearPdf, results, showGraph }) {
     const [previewUrl, setPreviewUrl] = useState(null);
     const [processing, setProcessing] = useState(false);
     const [uploadError, setUploadError] = useState(null);
     const [dots, setDots] = useState('');
     const fileInputRef = useRef(null);
-
+    const [searchMode, setSearchMode] = useState('upload'); // 'upload' or 'search'
     useEffect(() => {
         let fileUrl;
         if (pdfFile) {
@@ -24,7 +24,6 @@ function UploadPDF({ onResultsUpdate, toggleGraphView, pdfFile, onPdfUpload, onC
         if (file && file.type === 'application/pdf') {
             onPdfUpload(file);  // Update parent state with the File object
             handleUpload(file); // Start the (potentially failing) server request
-            // No changes here - previewUrl is ALREADY set in the useEffect
         } else {
             alert('Please upload a PDF file');
         }
@@ -100,7 +99,6 @@ function UploadPDF({ onResultsUpdate, toggleGraphView, pdfFile, onPdfUpload, onC
           backgroundColor: '#f2f2f2', // Default background (disabled/neutral)
           color: '#999',          // Default text color
       },
-       // *** NEW: Styles for the toggle switch ***
        switchContainer: {
           display: 'flex',
           alignItems: 'center',
@@ -140,7 +138,6 @@ function UploadPDF({ onResultsUpdate, toggleGraphView, pdfFile, onPdfUpload, onC
 
   };
 
-      // --- Determine button style and behavior based on state ---
       let buttonStyle = { ...styles.clearButton };
       let buttonText = 'Choose a PDF file'; // Default text
       let onClickAction = triggerFileInput;
@@ -187,13 +184,72 @@ function UploadPDF({ onResultsUpdate, toggleGraphView, pdfFile, onPdfUpload, onC
           100% { background-color: #e0e0e0; }    /* Back to slightly lighter */
       }`;
 
+      const handleSearchSubmit = async (query) => {
+        try {
+            setProcessing(true);
+            setUploadError(null);
+            
+            // Create form data for the search query
+            const formData = new FormData();
+            formData.append('query', query);
+            formData.append('functionName', 'semanticSearchPapers');
+            
+            const response = await fetch('http://localhost:5000/semantic-search', {
+                method: 'POST',
+                body: formData,
+            });
 
-    return (
-        <div style={styles.container}>
-            <style>{keyframes}</style>
-            <div style={styles.innerBox}>
-                <h2 style={styles.title}>Upload PDF</h2>
-                 {!pdfFile && (
+            if (!response.ok) {
+                throw new Error(`Search failed with status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            onResultsUpdate(data);
+        } catch (error) {
+            console.error('Error:', error);
+            setUploadError(error.message || 'Failed to process the search');
+        } finally {
+            setProcessing(false);
+        }
+    };
+
+   return (
+    <div style={styles.container}>
+        <style>{keyframes}</style>
+        <div style={styles.innerBox}>
+            {/* Mode toggle */}
+            <div style={styles.switchContainer}>
+                <div 
+                    style={{
+                        ...styles.switchOption,
+                        ...(searchMode === 'upload' ? styles.activeOption : {})
+                    }}
+                    onClick={() => setSearchMode('upload')}
+                >
+                    Upload PDF
+                </div>
+                <div 
+                    style={{
+                        ...styles.switchOption,
+                        ...(searchMode === 'search' ? styles.activeOption : {})
+                    }}
+                    onClick={() => setSearchMode('search')}
+                >
+                    Semantic Search
+                </div>
+                <div 
+                    style={{
+                        ...styles.slider,
+                        left: searchMode === 'upload' ? '2px' : '50%'
+                    }}
+                />
+            </div>
+
+            {/* Render either PDF upload UI or Semantic search UI based on mode */}
+            {searchMode === 'upload' ? (
+                <>
+                    <h2 style={styles.title}>Upload PDF</h2>
+                    {!pdfFile && (
                     <label htmlFor="file-upload" style={styles.label}>
                        {buttonText}
                         <input
@@ -226,9 +282,17 @@ function UploadPDF({ onResultsUpdate, toggleGraphView, pdfFile, onPdfUpload, onC
                         <PDFViewer url={previewUrl} />
                     </div>
                 )}
-            </div>
+                </>
+            ) : (
+                // The new Semantic Search component
+                <UploadText
+                    onSearchSubmit={handleSearchSubmit} 
+                    processing={processing} 
+                />
+            )}
         </div>
-    );
+    </div>
+);
 }
 
 export default UploadPDF;
