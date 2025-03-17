@@ -3,7 +3,42 @@ import React, { useState } from 'react';
 function UploadText({ onSearchSubmit, processing }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [dots, setDots] = useState('');
+
   
+const handleSearchSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!searchQuery.trim()) return;
+    
+    try {
+      // Set processing state
+      onSearchSubmit(true); // Set processing to true
+      
+      // Send the JSON request to the server
+      const response = await fetch('http://localhost:5000/natural-language-search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          query: searchQuery,
+        }),
+      });
+  
+      if (!response.ok) {
+        throw new Error(`Search failed with status: ${response.status}`);
+      }
+  
+      // Parse the response data
+      const data = await response.json();
+      
+      // Send the results back to the parent component
+      onSearchSubmit(false, data); // Set processing to false and pass the data
+    } catch (error) {
+      console.error('Error processing search:', error);
+      onSearchSubmit(false, null, error.message); // Pass the error message
+    }
+  };
   const handleSubmit = (e) => {
     e.preventDefault();
     if (searchQuery.trim()) {
@@ -100,7 +135,7 @@ function UploadText({ onSearchSubmit, processing }) {
     <div style={styles.container}>
       <h2 style={styles.title}>Semantic Paper Search</h2>
       
-      <form style={styles.form} onSubmit={handleSubmit}>
+      <form style={styles.form} onSubmit={handleSearchSubmit}>
         <div style={styles.inputContainer}>
           <input
             type="text"

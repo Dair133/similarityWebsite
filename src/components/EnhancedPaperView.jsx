@@ -55,7 +55,7 @@ function EnhancedPaperView({ paper, onBack }) {
             fontFamily: '"Montserrat", sans-serif',
             fontWeight: '500',
         },
-        interactionButton: { backgroundColor: '#f39c12', color: '#2c3e50', fontWeight: '700', padding: '10px 20px', borderRadius: '50px', textAlign: 'center', display: 'block', margin: '0 auto', cursor: 'pointer', fontFamily: '"Montserrat", sans-serif', fontSize: '16px', border: 'none', textTransform: 'uppercase', letterSpacing: '1px', transition: 'all 0.3s ease', boxShadow: '0 0 0 rgba(243, 156, 18, 0.4)', '&:hover': { animation: 'pulse 1.5s infinite' }, '@keyframes pulse': { '0%': { boxShadow: '0 0 0 0 rgba(243, 156, 18, 0.7)' }, '70%': { boxShadow: '0 0 0 10px rgba(243, 156, 18, 0)' }, '100%': { boxShadow: '0 0 0 0 rgba(243, 156, 18, 0)' } } },       
+        interactionButton: { backgroundColor: '#f39c12', color: '#2c3e50', fontWeight: '700', padding: '10px 20px', borderRadius: '50px', textAlign: 'center', display: 'block', margin: '0 auto', cursor: 'pointer', fontFamily: '"Montserrat", sans-serif', fontSize: '16px', border: 'none', textTransform: 'uppercase', letterSpacing: '1px', transition: 'all 0.3s ease', boxShadow: '0 0 0 rgba(243, 156, 18, 0.4)', '&:hover': { animation: 'pulse 1.5s infinite' }, '@keyframes pulse': { '0%': { boxShadow: '0 0 0 0 rgba(243, 156, 18, 0.7)' }, '70%': { boxShadow: '0 0 0 10px rgba(243, 156, 18, 0)' }, '100%': { boxShadow: '0 0 0 0 rgba(243, 156, 18, 0)' } } },
         overlapItem: {
             marginBottom: '8px',
         },
@@ -167,7 +167,7 @@ function EnhancedPaperView({ paper, onBack }) {
                     <SimplePulseButton onclick={null} buttonText={"Use this paper as seed paper 🌱 "} />
                     <br></br>
                     <SimplePulseButton onclick={null} buttonText={"Find Paper Online 🌍"} />
-                                    </div>
+                </div>
             </div>
         </FadeIn>
     );

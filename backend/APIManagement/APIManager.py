@@ -45,6 +45,7 @@ class APIManagerClass:
         self.largeLanguageModelsAPI = APILargeLanguageModelsClass()
         self.claudeInstruction_extractTitleMethodInfo = self.promptManager.get_prompt('extractTitleMethodInfo')
         self.claudeInstruction_extractAllInfo = self.promptManager.get_prompt('extractAllInfo')
+        self.claudeInstruction_naturalLanguagePrompt = self.promptManager.get_prompt('naturalLanguageInfo')
         pass
     
     
@@ -79,6 +80,21 @@ class APIManagerClass:
                 return generalPaperInfo, paperSearchTermsAndTitle
             
             
+            
+            
+            
+            
+    
+    def return_search_terms_for_text(self, text, api_key_claude):
+        naturalLanguagePromptResult = self.largeLanguageModelsAPI.ask_claude(pdfText=text, 
+                                      systemInstructions=self.claudeInstruction_naturalLanguagePrompt, 
+                                      api_key=api_key_claude)
+        paperSearchTerms   = self.processor.parse_paper_info(naturalLanguagePromptResult.content[0].text)
+        print(paperSearchTerms)
+        return paperSearchTerms
+   
+   
+            
     # Used only when semantic scholar does not have the paper in its database or when paper has no abstract
     def return_general_paper_info_from_haiku(self, filepath, paperSearchTermsAndTitle):
         print("No semantic scholar data")
@@ -99,16 +115,18 @@ class APIManagerClass:
         return semanticScholarPapers
     # NO api key required for openalex
     def return_paper_list_from_openAlex(self, search_terms):
-        openAlexPapers = self.searchPapersAPI.search_papers_parallel_ALEX(search_terms,desired_papers=50)
+        openAlexPapers = self.searchPapersAPI.search_papers_parallel_ALEX(search_terms,desired_papers=80)
         return openAlexPapers
     
     
-    def return_found_papers(self, paperSearchTermsAndTitle,parsedSeedAuthorList, api_key_semanmtic):
+    def return_found_papers(self,  api_key_semantic,paperSearchTermsAndTitle=None,parsedSeedAuthorList=None):
         # Combine both sets of papers and return
+        
         search_terms = self.searchPapersAPI.prepare_search_terms(paperSearchTermsAndTitle, parsedSeedAuthorList)
         
-        author_terms = [{'term': item['term'], 'type': 'author'} for item in search_terms if item['type'] == 'author']
-        semanticScholarPapers = self.return_paper_list_from_semanticScholar(author_terms, api_key_semanmtic)
+        #Does searching by author, uncomment to enable
+        #author_terms = [{'term': item['term'], 'type': 'author'} for item in search_terms if item['type'] == 'author']
+        #semanticScholarPapers = self.return_paper_list_from_semanticScholar(author_terms, api_key_semantic)
         
         openAlexPapers = self.return_paper_list_from_openAlex(search_terms)
         
@@ -118,8 +136,14 @@ class APIManagerClass:
     
     
     # Takes in a single seed paper and returns a single scibert embedding
-    def get_single_scibert_embedding(self, generalPaperInfo, ngrok_domain_name:str):
-        seedAbstract = generalPaperInfo['abstract']
+    def get_single_scibert_embedding(self, generalPaperInfo=None, ngrok_domain_name=None, naturalLanguagePromptInfo=None):
+        
+        if naturalLanguagePromptInfo is not None:
+            # Use the natural language prompt to generate scibert to compare against papers
+            seedAbstract = naturalLanguagePromptInfo['paper_info']['prompt']
+        else:
+            seedAbstract = generalPaperInfo['abstract']
+            
         self.personalPCClass.check_server_health(base_url=ngrok_domain_name)
         scibertEmbedding = self.personalPCClass.get_single_scibert(abstract_text = seedAbstract, base_url=ngrok_domain_name)
         return scibertEmbedding
@@ -149,16 +173,32 @@ class APIManagerClass:
     
     
     def compare_papers_batch(self, seedPaper, papersReturnedThroughSearch):
-     # Get comparison results
-     comparedPapers = self.personalPCClass.compare_papers_socket(seedPaper, papersReturnedThroughSearch)
+        print(f"compare_papers_batch received seed_paper: {json.dumps(seedPaper, default=str)[:100]}")
+        print(f"compare_papers_batch received {len(papersReturnedThroughSearch)} papers to compare")
     
-     # Get the list of compared papers - this is a LIST of dictionaries
-     comparedPapersList = comparedPapers.get('compared_papers', [])
+        # Ensure seedPaper has the right structure expected by compare_papers_socket
+        if not isinstance(seedPaper, dict) or 'paper_info' not in seedPaper:
+            # If not properly structured, wrap it
+            print("Warning: Seed paper missing paper_info, restructuring")
+            seed_paper_fixed = {
+            'paper_info': seedPaper if isinstance(seedPaper, dict) else {'abstract': str(seedPaper)}
+        }
+        else:
+            seed_paper_fixed = seedPaper
     
-    # Print just the source_info for each paper (more controlled output)
-     for i, paper in enumerate(comparedPapersList):
-        print(f"Paper {i} source_info:", paper.get('source_info', {}))
-        # You can also access similarity scores
-        print(f"Paper {i} similarity:", paper.get('similarity_score', 0))
+        # Get comparison results
+        comparedPapers = self.personalPCClass.compare_papers_socket(
+            seed_paper_fixed,
+            papersReturnedThroughSearch
+        )
     
-     return comparedPapers
+        # Add null check
+        if comparedPapers is None:
+            print("Error: No response received from compare_papers_socket")
+            return {'compared_papers': []}
+    
+        # Get the list of compared papers
+        comparedPapersList = comparedPapers.get('compared_papers', [])
+        print(f"Received {len(comparedPapersList)} compared papers in response")
+    
+        return comparedPapers
