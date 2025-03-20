@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import FadeIn from 'react-fade-in';
 import EnhancedPaperView from './EnhancedPaperView'; // Import the enhanced view component
-
+import SimplePulseButton from './module/buttons/PulseButton';
 function ListResults({ results, toggleGraphView, setParentResults, showGraph }) {
   console.log(results);
   const [localResults, setLocalResults] = useState(null);
@@ -393,80 +393,95 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
     // Wrap the enhanced view in the same container as the list
     return (
       <div style={styles.container}>
-        <EnhancedPaperView paper={selectedPaper} onBack={handleBackToList} />
+        <EnhancedPaperView paper={selectedPaper} onBack={handleBackToList} seedPaper={localResults.seed_paper || displayResults.seed_paper} />
       </div>
     );
   }
 
   // Helper function to generate fake results for testing
-  const generateFakeResults = () => {
-    const authorPool = [
-      "Zhang, L.",
-      "Smith, J.",
-      "Johnson, K.",
-      "Williams, R.",
-      "Brown, M.",
-      "Davis, T.",
-      "Miller, S.",
-      "Wilson, A.",
-      "Moore, D.",
-      "Taylor, P."
-    ];
+// Helper function to generate fake results for testing
+const generateFakeResults = () => {
+  const authorPool = [
+    "Zhang, L.",
+    "Smith, J.",
+    "Johnson, K.",
+    "Williams, R.",
+    "Brown, M.",
+    "Davis, T.",
+    "Miller, S.",
+    "Wilson, A.",
+    "Moore, D.",
+    "Taylor, P."
+  ];
 
-    const fakePapers = Array.from({ length: 10 }, (_, i) => {
-      const paperAuthorCount = Math.floor(Math.random() * 3) + 1;
-      const paperAuthors = [];
-      for (let j = 0; j < paperAuthorCount; j++) {
-        const randomIndex = Math.floor(Math.random() * authorPool.length);
-        if (!paperAuthors.includes(authorPool[randomIndex])) {
-          paperAuthors.push(authorPool[randomIndex]);
-        }
+  // Create a simple soil science seed paper
+  const seedPaper = {
+    paper_info: {
+      title: "Effects of Climate Change on Soil Microbial Communities",
+      authors: ["Brown, M.", "Davis, T.", "Wilson, A."],
+      abstract: "This study examines how rising temperatures and changing precipitation patterns affect soil microbial communities. We collected samples from various ecosystems and analyzed microbial diversity and activity under different simulated climate conditions.",
+      full_content: "This is the full content of the soil science paper. It contains detailed information about soil microbial communities and how they respond to climate change. The methodology involved collecting soil samples from different ecosystems including forests, grasslands, and agricultural fields. We measured microbial biomass, respiration rates, and community composition using DNA sequencing. Our results indicate that warming temperatures generally increase microbial activity but decrease diversity in most soil types. Drought conditions had more variable effects depending on the ecosystem type. These findings have important implications for carbon cycling and ecosystem functions under future climate scenarios."
+    }
+  };
+
+  const fakePapers = Array.from({ length: 10 }, (_, i) => {
+    const paperAuthorCount = Math.floor(Math.random() * 3) + 1;
+    const paperAuthors = [];
+    for (let j = 0; j < paperAuthorCount; j++) {
+      const randomIndex = Math.floor(Math.random() * authorPool.length);
+      if (!paperAuthors.includes(authorPool[randomIndex])) {
+        paperAuthors.push(authorPool[randomIndex]);
       }
+    }
 
-      const sharedAuthors = i % 2 === 1 ? [authorPool[0], authorPool[1]].slice(0, i % 3) : [];
+    const sharedAuthors = i % 2 === 1 ? [authorPool[0], authorPool[1]].slice(0, i % 3) : [];
 
-      return {
-        paper_info: {
-          title: `Fake Paper Title ${i + 1}`,
-          abstract: `This is a fake abstract for paper ${i + 1}. It's short and sweet.`,
-          authors: paperAuthors,
-        },
-        similarity_score: (1 - i * 0.1).toFixed(2),
-        source_info: {
-          search_term: i % 2 === 0 ? "minimal perturbation computation" : ["adversarial example generation", "neural network vulnerability"],
-          search_type: i % 2 === 0 ? "core_methodology" : "conceptual_angles",
-        },
-        comparison_metrics: {
-          shared_reference_count: Math.floor(Math.random() * 10),
-          shared_citation_count: Math.floor(Math.random() * 10),
-          shared_author_count: sharedAuthors.length,
-          shared_authors: sharedAuthors,
-          shared_references: i % 2 === 0 ?
-            ["Smith et al. (2019)", "Johnson & Lee (2020)", "Williams (2018)"] :
-            ["Brown et al. (2021)", "Davis (2019)", "Miller & Taylor (2020)",
-             "Wilson (2017)", "Moore & Zhang (2022)", "Additional paper 1", "Additional paper 2"],
-        },
-      };
-    });
+    // Make one paper related to soil science
+    let title, abstract;
+    if (i === 2) {
+      title = "Agricultural Management Practices and Soil Health Indicators";
+      abstract = "Our study investigates how different farming methods affect soil quality. We found that crop rotation and reduced tillage significantly improve soil microbial activity compared to conventional practices.";
+    } else {
+      title = `Fake Paper Title ${i + 1}`;
+      abstract = `This is a fake abstract for paper ${i + 1}. It's short and sweet.`;
+    }
 
-    const fakeResultsData = {
-      seed_paper: {
-        paper_info: {
-          title: "Seed Paper Title",
-          abstract: "This is a fake abstract for the seed paper.",
-          authors: [authorPool[0], authorPool[1], authorPool[2]],
-        },
+    return {
+      paper_info: {
+        title: title,
+        abstract: abstract,
+        authors: paperAuthors,
       },
-      abstract_info: "Fake abstract information.",
-      similarity_results: fakePapers,
-      test: {
-        compared_papers: fakePapers,
+      similarity_score: (1 - i * 0.1).toFixed(2),
+      source_info: {
+        search_term: i % 2 === 0 ? "minimal perturbation computation" : ["adversarial example generation", "neural network vulnerability"],
+        search_type: i % 2 === 0 ? "core_methodology" : "conceptual_angles",
+      },
+      comparison_metrics: {
+        shared_reference_count: Math.floor(Math.random() * 10),
+        shared_citation_count: Math.floor(Math.random() * 10),
+        shared_author_count: sharedAuthors.length,
+        shared_authors: sharedAuthors,
+        shared_references: i % 2 === 0 ?
+          ["Smith et al. (2019)", "Johnson & Lee (2020)", "Williams (2018)"] :
+          ["Brown et al. (2021)", "Davis (2019)", "Miller & Taylor (2020)",
+            "Wilson (2017)", "Moore & Zhang (2022)", "Additional paper 1", "Additional paper 2"],
       },
     };
+  });
 
-    setLocalResults(fakeResultsData);
-    setParentResults(fakeResultsData);
+  const fakeResultsData = {
+    seed_paper: seedPaper,
+    abstract_info: "Fake abstract information.",
+    similarity_results: fakePapers,
+    test: {
+      compared_papers: fakePapers,
+    },
   };
+
+  setLocalResults(fakeResultsData);
+  setParentResults(fakeResultsData);
+};
 
   const displayResults = localResults || results;
 
@@ -556,12 +571,23 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
                   <div style={styles.paperAbstract}>
                     <strong>Abstract: </strong> {paper.paper_info.abstract}
                   </div>
-                  <button
+                  {/* <button
                     style={styles.enhancedViewButton}
                     onClick={() => handleShowEnhancedView(paper)}
                   >
                     Enhanced Paper View
-                  </button>
+                  </button> */}
+                  <SimplePulseButton
+                    buttonText={"Enhanced Paper View"}
+                    onClick={() => handleShowEnhancedView(paper)}
+                    customStyle={{
+                      fontSize: '14px',
+                      width: '200px',
+                      fontWeight:'700',
+                      backgroundColor: '#94B4DC',
+                      width: '80%',
+                    }}
+                  />
                 </li>
               ))}
             </FadeIn>

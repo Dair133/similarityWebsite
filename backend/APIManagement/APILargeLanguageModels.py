@@ -60,5 +60,5 @@ class APILargeLanguageModelsClass:
         
         except Exception as e:
             # If something goes wrong, log it and raise the error
-            self.logger.error(f"Error communicating with Claude: {str(e)}")
+            print(f"Error communicating with Claude: {str(e)}")
             raise

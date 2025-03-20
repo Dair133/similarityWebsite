@@ -45,19 +45,19 @@ api_key_semantic = os.getenv('SEMANTIC_API_KEY')
 api_key_claude = os.getenv('HAIKU_API_KEY')
 api_key_deepseek = os.getenv('DEEPSEEK_API_KEY')
 ngrok_domain_name = os.getenv('NGROK_DOMAIN')
-print(api_key_claude)
 upload_bp = Blueprint('upload', __name__)
 # Create an upload folder for temporary file storage
 UPLOAD_FOLDER = 'uploads'
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
+processor = PDFProcessor()
+metricsCalculator = MetricsCalculator()
+localDatabaseManager = LocalDatabaseManager()
+apiManagerClass = APIManagerClass()
 
 @upload_bp.route('/process-pdf', methods=['POST'])
 def process_pdf_route():
-    processor = PDFProcessor()
-    metricsCalculator = MetricsCalculator()
-    localDatabaseManager = LocalDatabaseManager()
-    apiManagerClass = APIManagerClass()
+
 
     try:
         # Save the file
@@ -65,10 +65,11 @@ def process_pdf_route():
         filepath = processor.save_uploaded_pdf(file, UPLOAD_FOLDER)
 
 
-        # Will probably have to change to more generic 'extractPdfInfo', one function extract all necessary info for pdf.
         entireFuncionTime = time.time()
         try:    
-
+            # For using a returned paper as  a seed paper I could clikc 'use as seed apper' upon which I pass all the info about the  paper already gotten to the backend
+            # Simply skipping the pdf saving bit, then setting generalPaperInfo to the seed paper info
+            # The one issue here would be thatw e would NOT have access to the full pdf and hence the search terms would not be as accurate and the user could not be shown the pdf of the paper.
                 startTime = time.time()
                 generalPaperInfo,paperSearchTermsAndTitle = apiManagerClass.return_general_paper_info_from_semantic(filepath, pdfName, api_key_semantic, api_key_claude)
                 endTime = time.time()
@@ -90,7 +91,7 @@ def process_pdf_route():
                 parsedSeedReferenceList, parsedSeedCitationList,  parsedSeedAuthorList = metricsCalculator.return_attributes_lists(generalPaperInfo)
                 
             
-                papersReturnedThroughSearch = apiManagerClass.return_found_papers(paperSearchTermsAndTitle,parsedSeedAuthorList, api_key_semantic)
+                papersReturnedThroughSearch = apiManagerClass.return_found_papers(api_key_semantic=api_key_semantic, paperSearchTermsAndTitle=paperSearchTermsAndTitle,parsedSeedAuthorList=parsedSeedAuthorList)
 
         
                 seedPaper = {
@@ -130,7 +131,9 @@ def process_pdf_route():
                 result['test'] = similarityResults
                 finishingTime = time.time()
                 print(f"Entire function took: {finishingTime - entireFuncionTime} seconds")
-                        
+                    
+                
+                    
                 return jsonify(result), 200
                    
         except Exception as e:
@@ -151,7 +154,7 @@ def process_pdf_route():
 
     except Exception as e:
         # Log the full error with traceback
-        import traceback
+
         error_msg = f"Error processing PDF: {str(e)}\nTraceback:\n{traceback.format_exc()}"
         print(error_msg)  
         
@@ -164,11 +167,108 @@ def process_pdf_route():
             'details': traceback.format_exc()
         }), 500
 
+@upload_bp.route('/explain-similarity', methods=['POST'])
+def explain_similarity():
+
+    try:
+        print("Inside explain similarity route")
+        data = request.get_json()
+        
+        # Log the received data for debugging
+        print("Received data:", data)
+        
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        # Extract the required information
+        seed_paper = data.get('seed_paper', {})
+        current_paper = data.get('current_paper', {})
+        similarity_metrics = data.get('similarity_metrics', {})
+        
+        seedPaperAbstract = seed_paper.get('abstract', '')
+        print("Seed paper abstract:", seedPaperAbstract)
+        currentPaperAbstract = current_paper.get('abstract', '')
+        explanation = apiManagerClass.explainSimilarity(seedPaperAbstract, currentPaperAbstract, api_key_claude)
+    
+        return jsonify({
+            "explanation": explanation,
+            "success": True
+        })
+        
+    except Exception as e:
+        print(f"Error in explain_similarity: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 
 
 
 
+@upload_bp.route('/natural-language-search', methods=['POST'])
+def semantic_search():
+    
+    naturalLanguagePrompt = request.json['query']
+    print(naturalLanguagePrompt)
+    searchTerms = apiManagerClass.return_search_terms_for_text(naturalLanguagePrompt, api_key_claude)
+
+    # Fix the structure - ensure unique keys
+    naturalLanguagePromptInfo = {
+        'search_type': 'natural_language_prompt',
+        'paper_info': {
+            'title': 'Natural Language Prompt',
+            'abstract': naturalLanguagePrompt,
+            'prompt': naturalLanguagePrompt,
+            'scibert': None,
+            'authors': 'None',
+            'year': 'None',
+            'citation_count': 0,
+            'reference_count': 0,
+            'citations': 'None',
+            'references': 'None',
+        },
+        'comparison_metrics': {
+            'shared_reference_count': 0,
+            'shared_citation_count': 0,
+            'shared_author_count': 0
+        }
+    }      
+    
+    naturalLanguagePromptInfo['paper_info']['scibert'] = apiManagerClass.get_single_scibert_embedding(
+        naturalLanguagePromptInfo=naturalLanguagePromptInfo, ngrok_domain_name=ngrok_domain_name)
+    
+    papersReturnedThroughSearch = apiManagerClass.return_found_papers(
+        api_key_semantic=api_key_semantic, paperSearchTermsAndTitle=searchTerms)
+    
+    papersReturnedThroughSearch = localDatabaseManager.load_poison_pill_papers(
+        papersReturnedThroughSearch, "poison_pill_papers_With_SciBert.xlsx")
+    
+    papersReturnedThroughSearch = apiManagerClass.get_batch_scibert_embeddings(papersReturnedThroughSearch)
+    
+    # Create a clean seed paper structure that matches what the endpoint expects
+    clean_seed_paper = {
+        'paper_info': naturalLanguagePromptInfo['paper_info'],
+        'comparison_metrics': naturalLanguagePromptInfo['comparison_metrics']
+    }
+    
+    # Print structure for debugging
+    print("Sending clean seed paper structure:", json.dumps(clean_seed_paper, default=str)[:100])
+    
+    similarityResults = apiManagerClass.compare_papers_batch(clean_seed_paper, papersReturnedThroughSearch)
+    
+    if similarityResults and 'compared_papers' in similarityResults:
+        # Process results if successful
+        relativelySimilarPapers = metricsCalculator.get_relatively_similar_papers(
+            similarityResults['compared_papers'])
+        
+        return jsonify({
+            'seed_paper': clean_seed_paper,
+            'similarity_results': relativelySimilarPapers
+        })
+    else:
+        print('In natural language search - error case')
+        return jsonify({
+            'status': 'error',
+            'message': 'Failed to compare papers'
+        }), 500
 
 
 
