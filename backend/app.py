@@ -50,13 +50,14 @@ upload_bp = Blueprint('upload', __name__)
 UPLOAD_FOLDER = 'uploads'
 if not os.path.exists(UPLOAD_FOLDER):
     os.makedirs(UPLOAD_FOLDER)
+processor = PDFProcessor()
+metricsCalculator = MetricsCalculator()
+localDatabaseManager = LocalDatabaseManager()
+apiManagerClass = APIManagerClass()
 
 @upload_bp.route('/process-pdf', methods=['POST'])
 def process_pdf_route():
-    processor = PDFProcessor()
-    metricsCalculator = MetricsCalculator()
-    localDatabaseManager = LocalDatabaseManager()
-    apiManagerClass = APIManagerClass()
+
 
     try:
         # Save the file
@@ -130,7 +131,9 @@ def process_pdf_route():
                 result['test'] = similarityResults
                 finishingTime = time.time()
                 print(f"Entire function took: {finishingTime - entireFuncionTime} seconds")
-                        
+                    
+                
+                    
                 return jsonify(result), 200
                    
         except Exception as e:
@@ -164,16 +167,44 @@ def process_pdf_route():
             'details': traceback.format_exc()
         }), 500
 
+@upload_bp.route('/explain-similarity', methods=['POST'])
+def explain_similarity():
+
+    try:
+        print("Inside explain similarity route")
+        data = request.get_json()
+        
+        # Log the received data for debugging
+        print("Received data:", data)
+        
+        if not data:
+            return jsonify({"error": "No data provided"}), 400
+        
+        # Extract the required information
+        seed_paper = data.get('seed_paper', {})
+        current_paper = data.get('current_paper', {})
+        similarity_metrics = data.get('similarity_metrics', {})
+        
+        seedPaperAbstract = seed_paper.get('abstract', '')
+        print("Seed paper abstract:", seedPaperAbstract)
+        currentPaperAbstract = current_paper.get('abstract', '')
+        explanation = apiManagerClass.explainSimilarity(seedPaperAbstract, currentPaperAbstract, api_key_claude)
+    
+        return jsonify({
+            "explanation": explanation,
+            "success": True
+        })
+        
+    except Exception as e:
+        print(f"Error in explain_similarity: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
 
 
 
 
 @upload_bp.route('/natural-language-search', methods=['POST'])
 def semantic_search():
-    processor = PDFProcessor()
-    metricsCalculator = MetricsCalculator()
-    localDatabaseManager = LocalDatabaseManager()
-    apiManagerClass = APIManagerClass()
     
     naturalLanguagePrompt = request.json['query']
     print(naturalLanguagePrompt)

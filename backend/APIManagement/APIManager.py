@@ -46,6 +46,7 @@ class APIManagerClass:
         self.claudeInstruction_extractTitleMethodInfo = self.promptManager.get_prompt('extractTitleMethodInfo')
         self.claudeInstruction_extractAllInfo = self.promptManager.get_prompt('extractAllInfo')
         self.claudeInstruction_naturalLanguagePrompt = self.promptManager.get_prompt('naturalLanguageInfo')
+        self.claudeInstruction_explainSimilarity = self.promptManager.get_prompt('explainSimilarity')
         pass
     
     
@@ -202,3 +203,23 @@ class APIManagerClass:
         print(f"Received {len(comparedPapersList)} compared papers in response")
     
         return comparedPapers
+    
+    
+    def explainSimilarity(self, seedPaperContent, comparedPaperAbstract, api_key_claude):
+        # Truncate seedPaperContent to the first 8000 characters
+        seedPaperContent = seedPaperContent[:8000]
+        
+        # Combine the seed paper content and compared paper abstract with proper formatting
+        combinedText = f"Seed Paper Content:\n{seedPaperContent}\n\nCompared Paper Abstract:\n{comparedPaperAbstract}"
+        
+        # Send the combined text to Claude for explanation
+        returnedQuotes = self.largeLanguageModelsAPI.ask_claude(
+            pdfText=combinedText, 
+            systemInstructions=self.claudeInstruction_explainSimilarity, 
+            api_key=api_key_claude
+        )
+        
+        # Parse the response and return the result
+        paperSearchTerms = returnedQuotes.content[0].text
+        print(paperSearchTerms)
+        return paperSearchTerms

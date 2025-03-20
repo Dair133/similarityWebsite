@@ -574,6 +574,8 @@ class APISearchPapersClass:
         page = 1
         # Continue paginating until we collect the desired number of valid papers.
         while len(valid_papers) < desired_papers:
+            
+            
             params = {
                 "search": term_info['term'],
                 "page": page,
