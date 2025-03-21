@@ -86,6 +86,16 @@ function ParentDashboard() {
           showGraph={showGraph}
         />
       </div>
+      <h1 style={{ 
+        textAlign: 'center', 
+        color: '#333', 
+        margin: '15px 0',
+        padding: '0 20px', 
+        height: '30px',
+        fontSize: '24px'
+      }}>
+        Research Paper Analysis
+      </h1>
     </div>
   );
 }

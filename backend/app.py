@@ -199,6 +199,15 @@ def explain_similarity():
         print(f"Error in explain_similarity: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+@upload_bp.route('/get-paper-link', methods=['POST'])
+def get_paper_link():
+    # Expect a JSON payload with a key 'paper_title'
+    data = request.get_json()
+    paper_title = data.get('paper_title', "")
+    print("Paper title is", paper_title)
+    # Call your helper function to search by paper title
+    paperLinkAndTitle = apiManagerClass.get_paper_link(paper_title, api_key_semantic)
+    return jsonify(paperLinkAndTitle)
 
 
 

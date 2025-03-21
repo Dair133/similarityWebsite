@@ -641,7 +641,7 @@ class APISearchPapersClass:
 
             #print(f"Term '{term_info['term']}' page {page} processed: {len(valid_papers)} valid papers collected so far.")
             page += 1
-            time.sleep(1)  # Be polite to the API.
+            time.sleep(1) 
         #print(f"Found {len(valid_papers)} valid papers for term: {term_info['term']}")
         return valid_papers
 
@@ -656,6 +656,39 @@ class APISearchPapersClass:
             except Exception as e:
                 print(f"Error processing term {term.get('term', 'unknown')}: {e}")
      return all_valid_papers
+ 
+ 
+ 
+ 
+    def get_paper_link(self, paper_title: str, api_key_semantic: str):
+        endpoint = "https://api.semanticscholar.org/graph/v1/paper/search"
+        # Use exact title search syntax
+        query_param = f'title:("{paper_title}")'
+        params = {
+        "query": query_param,
+        "limit": "1",
+        "fields": "url,title"
+    }
+        headers = {"x-api-key": api_key_semantic}
+
+        try:
+            response = requests.get(endpoint, params=params, headers=headers)
+            response.raise_for_status()  # raise an exception for HTTP errors
+
+            result = response.json()
+            if result and "data" in result and len(result["data"]) > 0:
+                found_paper = result["data"][0]
+                print(f"Found paper link for title '{paper_title}': {found_paper.get('url')}")
+                return {
+                "title": found_paper.get("title", "N/A"),
+                "url": found_paper.get("url")
+                }
+            else:
+                print(f"No matching paper found for title: {paper_title}")
+                return {}
+        except Exception as e:
+            print(f"Error searching for paper title '{paper_title}': {e}")
+            return {}
  
  
  

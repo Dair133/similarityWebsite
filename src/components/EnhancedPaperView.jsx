@@ -1,12 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import FadeIn from 'react-fade-in';
 import SimplePulseButton from './module/buttons/PulseButton';
-
+import Spinner from './module/animations/Spinner'; // adjust the path as needed
 function EnhancedPaperView({ paper, onBack, seedPaper }) {
     // Add state for similarity explanation
     const [similarityExplanation, setSimilarityExplanation] = useState(null);
+
     const [isExplaining, setIsExplaining] = useState(false);
+    const [isExplained, setIsExplained] = useState(false);
     const [explanationError, setExplanationError] = useState(null);
+
+    const [paperLink, setPaperLink] = useState(null);
+    const [isFindingPaper, setIsFindingPaper] = useState(null);
+    const [hasFoundPaper, setHasFoundPaper] = useState(null);
+
+    const [quotesArray, setQuotesArray] = useState(null);
 
     const styles = {
         container: {
@@ -23,6 +31,7 @@ function EnhancedPaperView({ paper, onBack, seedPaper }) {
             marginBottom: '10px',
             color: '#EEE8D9',
             fontFamily: '"Montserrat", sans-serif',
+            textAlign: 'center',
         },
         authors: {
             fontSize: '16px',
@@ -146,6 +155,16 @@ function EnhancedPaperView({ paper, onBack, seedPaper }) {
             margin: '20px 0',
             opacity: 0.5,
         },
+        paperLink: {
+            color: '#81A4CD',
+            textDecoration: 'underline',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontFamily: '"Source Sans Pro", sans-serif',
+            wordWrap: 'break-word',
+            display: 'block',
+            marginTop: '10px',
+        },
     };
 
     // Add keyframes for spinner animation
@@ -189,7 +208,6 @@ function EnhancedPaperView({ paper, onBack, seedPaper }) {
             // Get current paper info
             const currentPaperTitle = paper.paper_info.title || "Unknown Paper";
             const currentPaperAbstract = paper.paper_info.abstract || "";
-
             // Create request data
             const requestData = {
                 seed_paper: {
@@ -222,19 +240,112 @@ function EnhancedPaperView({ paper, onBack, seedPaper }) {
 
             const data = await response.json();
             setSimilarityExplanation(data.explanation);
+            setQuotesArray(parseQuotes(data.explanation));
         } catch (error) {
             console.error('Error explaining similarity:', error);
             setExplanationError(error.message || 'Failed to generate similarity explanation');
         } finally {
             setIsExplaining(false);
+            setIsExplained(true);
         }
     };
 
+    const findPaperOnline = async () => {
+        setIsFindingPaper(true);
+        setPaperLink(null);
+        setHasFoundPaper(false);
+        const paperTitle = paper?.paper_info?.title || "";
+        const requestData = { paper_title: paperTitle };
 
-    const findPaperOnleine = async () => {
+        try {
+            const response = await fetch('http://localhost:5000/get-paper-link', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestData),
+            });
+
+            if (!response.ok) {
+                throw new Error(`Request failed with status: ${response.status}`);
+            }
 
 
+
+            const data = await response.json();
+            setPaperLink(data.url);
+            setIsFindingPaper(false);
+            setHasFoundPaper(true);
+            console.log(`Found paper: ${data.title} - ${data.url}`);
+            return data;
+        } catch (error) {
+            console.error(`Error finding paper online:`, error);
+            return {};
+        }
+    };
+
+    useEffect(() => {
+        console.log("Quotes array updated:", quotesArray);
+    }, [quotesArray]);
+
+    const parseQuotes = (text) => {
+        // This regex looks for QUOTE_x: "<some text>" 
+        // and captures whatever is inside the quotes
+        const quoteRegex = /QUOTE_\d+:\s*"([^"]+)"/g;
+        const quotes = [];
+        let match;
+
+        while ((match = quoteRegex.exec(text)) !== null) {
+            quotes.push(match[1]); // capture group 1
+        }
+        return quotes;
     }
+
+
+
+
+
+
+
+
+    const getDisabledExplanationButton = () => {
+        if (isExplaining || isExplained) {
+            return true;
+        } else {
+            return false;
+        }
+    };
+
+    const getDisabledButtonText = () => {
+
+        if (isExplaining) {
+            return "Generating explanation...";
+        } else if (isExplained) {
+            return "Explanation Generated!";
+        } else {
+            return "Why are these papers similar? 🔎"
+        }
+    }
+
+
+
+    const getPaperLinkButtonText = () => {
+        if (isFindingPaper) {
+            return "Searching For Paper...";
+        } else if (hasFoundPaper) {
+            return "Paper Found!";
+        } else {
+            return "Find Paper Online 🌍";
+        }
+    };
+    const getDisabledLinkButton = () => {
+        if (isFindingPaper) {
+            return true;
+        } else if (hasFoundPaper) {
+            return true;
+        } else {
+            return false;
+        }
+    };
+
 
 
 
@@ -251,27 +362,7 @@ function EnhancedPaperView({ paper, onBack, seedPaper }) {
                     <strong>Abstract:</strong> {paper.paper_info.abstract}
                 </p>
 
-                {/* Similarity Explanation Section */}
-                {(similarityExplanation || isExplaining) && (
-                    <div style={styles.explanationContainer}>
-                        <h3 style={styles.explanationTitle}>
-                            Why are these papers similar?
-                            {isExplaining && <span style={styles.loadingSpinner}></span>}
-                        </h3>
 
-                        {explanationError && (
-                            <p style={styles.explanationError}>{explanationError}</p>
-                        )}
-
-                        {similarityExplanation && (
-                            <div style={styles.explanationText}>
-                                {similarityExplanation}
-
-                            </div>
-                        )}
-
-                    </div>
-                )}
 
                 <div style={styles.section}>
                     <h3 style={styles.sectionTitle}>Similarity Metrics</h3>
@@ -334,17 +425,17 @@ function EnhancedPaperView({ paper, onBack, seedPaper }) {
                     <h2 style={styles.title}>Actions</h2>
                     <SimplePulseButton
                         onClick={explainSimilarity}
-                        buttonText={isExplaining ? "Generating explanation..." : "Why are these papers similar? 🔎"}
+                        buttonText={getDisabledButtonText()}
                         customStyle={{
                             fontSize: '14px',
                             fontWeight: '700',
                             backgroundColor: '#94B4DC',
                             width: '100%',
                             marginBottom: '15px',
-                            opacity: isExplaining ? 0.7 : 1,
-                            cursor: isExplaining ? 'default' : 'pointer'
+                            opacity: isExplaining || isExplained ? 0.7 : 1,
+                            cursor: isExplaining || isExplained ? 'not-allowed' : 'pointer'
                         }}
-                        disabled={isExplaining}
+                        disabled={getDisabledExplanationButton()}
                     />
 
                     <SimplePulseButton
@@ -360,15 +451,53 @@ function EnhancedPaperView({ paper, onBack, seedPaper }) {
                     />
 
                     <SimplePulseButton
-                        onClick={null}
-                        buttonText={"Find Paper Online 🌍"}
+                        onClick={findPaperOnline}
+                        buttonText={getPaperLinkButtonText()}
                         customStyle={{
                             fontSize: '14px',
                             fontWeight: '700',
                             backgroundColor: '#94B4DC',
-                            width: '100%'
+                            width: '100%',
+                            opacity: paperLink || isFindingPaper ? 0.7 : 1,
+                            cursor: paperLink || isFindingPaper ? 'not-allowed' : 'pointer'
                         }}
+                        disabled={getDisabledLinkButton()}
                     />
+                    <br></br>
+                    {(paperLink || isFindingPaper) && (
+                        <div>
+
+                            {isFindingPaper ? (
+                                <Spinner size={16} color="#3498db" />
+                            ) : (
+                                <FadeIn>
+                                    <strong>Link: </strong>
+                                    <span style={styles.paperLink}>{paperLink}</span>
+                                </FadeIn>
+                            )}
+                        </div>
+                    )}
+                    {/* Similarity Explanation Section */}
+                    {(similarityExplanation || isExplaining) && (
+                        <div style={styles.explanationContainer}>
+                            <h3 style={styles.explanationTitle}>
+                                Why are these papers similar?
+                                {isExplaining && <span style={styles.loadingSpinner}></span>}
+                            </h3>
+
+                            {explanationError && (
+                                <p style={styles.explanationError}>{explanationError}</p>
+                            )}
+
+                            {similarityExplanation && (
+                                <div style={styles.explanationText}>
+                                    {similarityExplanation}
+
+                                </div>
+                            )}
+
+                        </div>
+                    )}
                 </div>
             </div>
         </FadeIn>

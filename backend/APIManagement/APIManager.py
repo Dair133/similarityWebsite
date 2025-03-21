@@ -223,3 +223,8 @@ class APIManagerClass:
         paperSearchTerms = returnedQuotes.content[0].text
         print(paperSearchTerms)
         return paperSearchTerms
+    
+    
+    def get_paper_link(self, paperTitle, api_key_semantic:str):
+        returnedLinkAndTitle = self.searchPapersAPI.get_paper_link(paperTitle, api_key_semantic)
+        return returnedLinkAndTitle
