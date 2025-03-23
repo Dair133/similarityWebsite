@@ -81,7 +81,7 @@ def process_pdf_route():
                     result = processor.form_result_struct(generalPaperInfo, paperSearchTermsAndTitle, is_semantic_scholar=True)
                 else:
                     print('No Semantic Scholar data, getting ALL paper info from Haiku!')
-                    result = apiManagerClass.return_general_paper_info_from_haiku(filepath,pdfName)
+                    result = apiManagerClass.return_general_paper_info_from_haiku(filepath,pdfName,api_key_claude)
                   
             
                 generalPaperInfo['scibert'] = apiManagerClass.get_single_scibert_embedding(generalPaperInfo, ngrok_domain_name)

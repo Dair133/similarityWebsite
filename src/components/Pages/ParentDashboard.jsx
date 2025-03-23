@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
-import UploadPDF from './UploadPDF';
-import ListResults from './ListResults';
-import NodeGraph from './NodeGraph';
-import UploadDashboard from './UploadDashboard';
+import UploadPDF from '../UploadPDF';
+import ListResults from '../ListResults';
+import NodeGraph from '../NodeGraph';
+import UploadDashboard from '../UploadDashboard';
 
 function ParentDashboard() {
   const [results, setResults] = useState(null);
@@ -52,6 +52,14 @@ function ParentDashboard() {
       height: '100%',
       display: 'flex',
       overflow: 'hidden',
+    },
+    bottomBar:{
+      textAlign: 'center', 
+      color: '#333', 
+      margin: '15px 0',
+      padding: '0 20px', 
+      height: '30px',
+      fontSize: '24px'
     }
     // Removed rightSidebar style as it conflicts with ListResults' own styling
   };
@@ -86,14 +94,7 @@ function ParentDashboard() {
           showGraph={showGraph}
         />
       </div>
-      <h1 style={{ 
-        textAlign: 'center', 
-        color: '#333', 
-        margin: '15px 0',
-        padding: '0 20px', 
-        height: '30px',
-        fontSize: '24px'
-      }}>
+      <h1 style={styles.bottomBar}>
         Research Paper Analysis
       </h1>
     </div>

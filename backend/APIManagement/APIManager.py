@@ -97,13 +97,13 @@ class APIManagerClass:
    
             
     # Used only when semantic scholar does not have the paper in its database or when paper has no abstract
-    def return_general_paper_info_from_haiku(self, filepath, paperSearchTermsAndTitle):
+    def return_general_paper_info_from_haiku(self, filepath, paperSearchTermsAndTitle, api_key_claude):
         print("No semantic scholar data")
-        entirePDFText = self.processor._extract_text(filepath)  
+        entirePDFText = self.processor._extract_text(filepath,8000)  
     
         generalPaperInfo = self.largeLanguageModelsAPI.ask_claude(pdfText=entirePDFText, 
                                       systemInstructions=self.claudeInstruction_extractAllInfo, 
-                                      api_key=self.api_key_claude)
+                                      api_key=api_key_claude)
         generalPaperInfo = self.processor.parse_haiku_output(generalPaperInfo.content[0].text)
      
         result = self.rocessor.form_result_struct(generalPaperInfo, paperSearchTermsAndTitle, is_semantic_scholar=False)

@@ -1,17 +1,23 @@
-import React from 'react';
-import UploadPDF from './components/UploadPDF'
-import ListResults from './components/ListResults';
-import ParentDashboard from './components/ParentDashboard';
-function App() {
+// App.js
+import React, { useState } from 'react';
+import LandingPage from './components/Pages/LandingPage';
+import ParentDashboard from './components/Pages/ParentDashboard';
 
+function App() {
+  const [showLanding, setShowLanding] = useState(true);
+
+  const handleFindPapers = () => {
+    setShowLanding(false);
+  };
 
   return (
-    <div>
-    <div>
+    <>
+      {showLanding ? (
+        <LandingPage onFindPapers={handleFindPapers} />
+      ) : (
         <ParentDashboard />
-    </div>
-    </div>
-
+      )}
+    </>
   );
 }
 
