@@ -2,9 +2,11 @@
 # APP.py script
 import logging
 import time
+from bs4 import BeautifulSoup
 from flask import Blueprint, request, jsonify
 from typing import Dict, Any, List
 import numpy as np
+import requests
 import torch
 from werkzeug.utils import secure_filename
 # backend/app.py
@@ -32,15 +34,18 @@ import os
 from torch.nn.functional import cosine_similarity
 from transformers import AutoTokenizer, AutoModel
 from concurrent.futures import ThreadPoolExecutor
+
 from APIManagement.APISearchPapers import APISearchPapersClass
 from APIManagement.APILargeLanguageModels import APILargeLanguageModelsClass
 from APIManagement.APIPersonalPC import APIPersonalPCClass
+from APIManagement.APIScraper import APIScraperClass
 class APIManagerClass:
     def __init__(self):
         self.processor = PDFProcessor()
         self.cache = SearchTermCache()
         self.personalPCClass = APIPersonalPCClass()
         self.searchPapersAPI = APISearchPapersClass()
+        self.apiScraparClass = APIScraperClass()
         self.promptManager = PromptManager('prompts/prompts.json')
         self.largeLanguageModelsAPI = APILargeLanguageModelsClass()
         self.claudeInstruction_extractTitleMethodInfo = self.promptManager.get_prompt('extractTitleMethodInfo')
@@ -48,9 +53,55 @@ class APIManagerClass:
         self.claudeInstruction_naturalLanguagePrompt = self.promptManager.get_prompt('naturalLanguageInfo')
         self.claudeInstruction_explainSimilarity = self.promptManager.get_prompt('explainSimilarity')
         pass
-    
-    
-    
+    def scrapeOpenAlexTitles(self, search_terms_list, max_titles_per_term=100, max_pages_per_term=5):
+        """
+        Scrapes OpenAlex titles for multiple search terms.
+        
+        Args:
+            search_terms_list (list): List of search terms to query
+            max_titles_per_term (int): Maximum number of titles to retrieve per search term
+            max_pages_per_term (int): Maximum number of pages to check per search term
+            
+        Returns:
+            dict: Dictionary mapping search terms to their results
+        """
+        results = {}
+        
+        # Handle the case where a single string is passed instead of a list
+        if isinstance(search_terms_list, str):
+            search_terms_list = [search_terms_list]
+        
+        print(f"Starting to scrape {len(search_terms_list)} search terms from OpenAlex...")
+        
+        for i, term in enumerate(search_terms_list):
+            print(f"\n[{i+1}/{len(search_terms_list)}] Processing search term: '{term}'")
+            
+            try:
+                # Call the API scraper function (not this function again)
+                # This assumes there's a separate function in the class for single term searching
+                # Change this to whatever your actual single-term function is called
+                titles = self.apiScraparClass.scrape_openalex_search_results(term)
+                
+                # Store the results
+                results[term] = titles
+                
+                print(f"Found {len(titles)} titles for term '{term}'")
+                
+                # Optional: Add a small delay between requests to be nice to the server
+                if i < len(search_terms_list) - 1:
+                    import time
+                    time.sleep(1)  # 1-second delay between searches
+                    
+            except Exception as e:
+                print(f"Error processing term '{term}': {e}")
+                results[term] = []  # Store empty list for failed terms
+        
+        # Print summary
+        print("\nScraping complete! Summary:")
+        for term, titles in results.items():
+            print(f"- '{term}': {len(titles)} titles")
+        
+        return results
     def return_general_paper_info_from_semantic(self, filepath, pdfName, api_key_semantic, api_key_claude):
                 # This section gets first 8000 characters of pdf
                 # passes it to claude, which returns searhc terms and title
@@ -116,7 +167,7 @@ class APIManagerClass:
         return semanticScholarPapers
     # NO api key required for openalex
     def return_paper_list_from_openAlex(self, search_terms):
-        openAlexPapers = self.searchPapersAPI.search_papers_parallel_ALEX(search_terms,desired_papers=80)
+        openAlexPapers = self.searchPapersAPI.search_papers_parallel_ALEX(search_terms,desired_papers=180)
         return openAlexPapers
     
     
@@ -172,6 +223,54 @@ class APIManagerClass:
         return papersReturnedThroughSearch
     
     
+    def scrape_openalex_titles():
+        """
+    Scrapes the first page of titles from the OpenAlex website.
+    
+    Returns:
+        list: A list of titles found on the first page.
+    """
+    # Send a GET request to the OpenAlex website
+        url = "https://openalex.org/"
+        headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
+    
+        try:
+            response = requests.get(url, headers=headers)
+            response.raise_for_status()  # Raise an exception for bad status codes
+        
+        # Parse the HTML content
+            soup = BeautifulSoup(response.text, 'html.parser')
+        
+        # Find all title elements - this is a generic approach since the exact structure may change
+        # You might need to adjust these selectors based on the actual HTML structure
+            titles = []
+        
+        # Try to find titles in common HTML elements that might contain titles
+            title_elements = soup.find_all(['h1', 'h2', 'h3', 'article'])
+        
+            for element in title_elements:
+                # Clean the text and add to titles if not empty
+                title_text = element.get_text(strip=True)
+                if title_text and title_text not in titles:
+                    titles.append(title_text)
+        
+        # Alternative approach: look for elements with specific classes that might contain titles
+        # This is a fallback if the above approach doesn't find relevant titles
+            if not titles:
+            # Look for elements with common title-related class names
+                potential_title_elements = soup.select('.title, .heading, .article-title, .post-title')
+                for element in potential_title_elements:
+                    title_text = element.get_text(strip=True)
+                    if title_text and title_text not in titles:
+                        titles.append(title_text)
+        
+            return titles
+        
+        except requests.RequestException as e:
+            print(f"Error fetching data from OpenAlex: {e}")
+        return []
     
     def compare_papers_batch(self, seedPaper, papersReturnedThroughSearch):
         print(f"compare_papers_batch received seed_paper: {json.dumps(seedPaper, default=str)[:100]}")

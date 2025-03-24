@@ -560,6 +560,12 @@ const generateFakeResults = () => {
                   <div style={styles.paperInfo}>
                     <strong>Similarity Score: </strong>
                     <span style={styles.paperMetric}>{paper.similarity_score}</span>
+                    {paper.is_gem && (
+                      <span style={styles.paperMetric}>IS A GEM{paper.is_gem}</span>
+                    )}
+                    {!paper.is_gem && (
+                      <span style={styles.paperMetric}>NOT A GEM{paper.is_gem}</span>
+                    )}
                   </div>
 
                   <div style={styles.paperInfo}>

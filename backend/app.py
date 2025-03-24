@@ -63,6 +63,7 @@ def process_pdf_route():
         # Save the file
         file, pdfName = processor.validate_pdf_upload(request)
         filepath = processor.save_uploaded_pdf(file, UPLOAD_FOLDER)
+        
 
 
         entireFuncionTime = time.time()
@@ -124,6 +125,12 @@ def process_pdf_route():
                     if 'scibert' in paper['paper_info']:
                         del paper['paper_info']['scibert']
                 # Clean up and return
+                
+                searchTermsArrayToScrape = metricsCalculator.extract_all_values(result.get('abstract_info',[]))
+                print("Search terms array to scrape is", searchTermsArrayToScrape)
+                titles = apiManagerClass.scrapeOpenAlexTitles(searchTermsArrayToScrape)
+                relativelySimilarPapers = metricsCalculator.mark_gem_papers(relativelySimilarPapers, titles)
+                #print("Titles returned after scraping are", titles)
                 os.remove(filepath)
                 result['seed_paper'] = seedPaper
                 result['similarity_results'] = relativelySimilarPapers

@@ -409,3 +409,197 @@ class MetricsCalculator:
             
         return parsedSeedReferenceList, parsedSeedCitationList, parsedSeedAuthorList
         
+        
+        
+        
+    def extract_all_values(self, input_dict):
+            """
+            Extract all values from a dictionary into a single flat array.
+            Ignores keys and just returns all values.
+            
+            Args:
+                input_dict (dict): Dictionary with nested values
+                
+            Returns:
+                list: A flat list of all values with cleaned formatting
+            """
+            all_values = []
+            
+            # Process all values in the dictionary
+            for value in input_dict.values():
+                if isinstance(value, list):
+                    # If the value is a list, process each item
+                    for item in value:
+                        # Clean up the item
+                        clean_item = self.clean_value(item)
+                        if clean_item:
+                            all_values.append(clean_item)
+                else:
+                    # If it's not a list, just clean and add it
+                    clean_item = self.clean_value(value)
+                    if clean_item:
+                        all_values.append(clean_item)
+            
+            return all_values
+
+    def clean_value(self, value):
+            """Helper function to clean up a value string."""
+            if not isinstance(value, str):
+                return value
+                
+            # Remove brackets, quotes, and trailing punctuation
+            result = value.strip()
+            if result.startswith('['):
+                result = result[1:]
+            if result.endswith('];'):
+                result = result[:-2]
+            elif result.endswith(']'):
+                result = result[:-1]
+                
+            # Remove any remaining quotes and extra whitespace
+            result = result.strip('"\'').strip()
+            
+            return result
+    def mark_gem_papers(self, relatively_similar_papers, scraped_titles):
+        """
+        Marks papers as GEM (true) if their title doesn't appear in scraped_titles.
+        Includes thorough title normalization to prevent false positives.
+        
+        Args:
+            relatively_similar_papers (list): List of paper objects from similarity results
+            scraped_titles (list or dict): List or dictionary of titles returned from OpenAlex scraping
+            
+        Returns:
+            list: The original papers list with GEM status added to each paper
+        """
+        # Convert scraped_titles to a list if it's not already
+        titles_list = []
+        if isinstance(scraped_titles, dict):
+            # If it's a dictionary, try to extract titles
+            if 'all_titles' in scraped_titles:
+                titles_list = scraped_titles['all_titles']
+            elif 'by_term' in scraped_titles:
+                # Flatten the nested dictionary
+                for term_titles in scraped_titles['by_term'].values():
+                    titles_list.extend(term_titles)
+            else:
+                # Just use values directly
+                for value in scraped_titles.values():
+                    if isinstance(value, list):
+                        titles_list.extend(value)
+                    elif isinstance(value, str):
+                        titles_list.append(value)
+        elif isinstance(scraped_titles, list):
+            titles_list = scraped_titles
+        else:
+            # Try to convert to a list if it's some other type
+            try:
+                titles_list = list(scraped_titles)
+            except:
+                titles_list = [str(scraped_titles)]
+        
+        # Function to normalize titles for comparison
+        def normalize_title(title):
+            if not title:
+                return ""
+            if not isinstance(title, str):
+                title = str(title)
+            
+            # Convert to lowercase
+            normalized = title.lower()
+            
+            # Remove special characters and extra whitespace
+            import re
+            # Remove punctuation
+            normalized = re.sub(r'[^\w\s]', ' ', normalized)
+            # Replace multiple spaces with a single space
+            normalized = re.sub(r'\s+', ' ', normalized)
+            # Remove leading/trailing whitespace
+            normalized = normalized.strip()
+            
+            return normalized
+        
+        # Normalize the scraped titles for better comparison
+        scraped_titles_normalized = [normalize_title(title) for title in titles_list]
+        
+        # Debug: Print some normalized scraped titles
+        print(f"\nFound {len(titles_list)} scraped titles to check against")
+        print("\nExample normalized scraped titles:")
+        for i in range(min(3, len(titles_list))):
+            print(f"Original: '{titles_list[i]}'")
+            print(f"Normalized: '{scraped_titles_normalized[i]}'")
+        
+        # Counter for stats
+        gem_count = 0
+        total_count = 0
+        
+        # Process each paper
+        for i, paper in enumerate(relatively_similar_papers):
+            total_count += 1
+            
+            # Extract the paper title - handle different possible structures
+            paper_title = None
+            
+            if 'paper_info' in paper and isinstance(paper['paper_info'], dict):
+                if 'title' in paper['paper_info']:
+                    paper_title = paper['paper_info']['title']
+            elif 'title' in paper:
+                paper_title = paper['title']
+                
+            # If we couldn't find a title, default to non-GEM
+            if not paper_title:
+                paper['is_gem'] = False
+                continue
+            
+            # Normalize the paper title
+            normalized_paper_title = normalize_title(paper_title)
+            
+            # Debug: Print paper title normalization
+            if i < 3:  # Just print first few for debugging
+                print(f"\nPaper #{i+1}:")
+                print(f"Original title: '{paper_title}'")
+                print(f"Normalized title: '{normalized_paper_title}'")
+            
+            # Check if this title appears in the scraped titles using normalized comparison
+            # First try exact match
+            title_in_scraped = normalized_paper_title in scraped_titles_normalized
+            
+            # If no exact match, try substring match
+            if not title_in_scraped and len(normalized_paper_title) > 10:
+                for scraped in scraped_titles_normalized:
+                    # Check if paper title is contained within scraped title or vice versa
+                    if normalized_paper_title in scraped or scraped in normalized_paper_title:
+                        if i < 3:
+                            print(f"Substring match found: '{scraped}'")
+                        title_in_scraped = True
+                        break
+                    
+                    # Simple word overlap check
+                    if len(normalized_paper_title) > 0 and len(scraped) > 0:
+                        paper_words = set(normalized_paper_title.split())
+                        scraped_words = set(scraped.split())
+                        
+                        # If 70% of words match, consider it a match
+                        if len(paper_words) > 0 and len(scraped_words) > 0:
+                            overlap = len(paper_words.intersection(scraped_words))
+                            smaller_set_size = min(len(paper_words), len(scraped_words))
+                            
+                            if overlap >= 0.7 * smaller_set_size and smaller_set_size >= 3:
+                                if i < 3:
+                                    print(f"Word overlap match: {overlap}/{smaller_set_size} words with: '{scraped}'")
+                                title_in_scraped = True
+                                break
+            
+            # Mark as GEM if the title is NOT in scraped titles
+            paper['is_gem'] = not title_in_scraped
+            
+            if paper['is_gem']:
+                gem_count += 1
+                if i < 10:  # Print first few GEM papers
+                    print(f"Marked as GEM: '{paper_title}'")
+        
+        # Print summary
+        print(f"\nGEM Paper Analysis:")
+        print(f"Found {gem_count} GEM papers out of {total_count} total papers ({(gem_count/total_count)*100:.1f}%)")
+        
+        return relatively_similar_papers
