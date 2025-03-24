@@ -63,6 +63,7 @@ def process_pdf_route():
         # Save the file
         file, pdfName = processor.validate_pdf_upload(request)
         filepath = processor.save_uploaded_pdf(file, UPLOAD_FOLDER)
+        
 
 
         entireFuncionTime = time.time()
@@ -81,7 +82,7 @@ def process_pdf_route():
                     result = processor.form_result_struct(generalPaperInfo, paperSearchTermsAndTitle, is_semantic_scholar=True)
                 else:
                     print('No Semantic Scholar data, getting ALL paper info from Haiku!')
-                    result = apiManagerClass.return_general_paper_info_from_haiku(filepath,pdfName)
+                    result = apiManagerClass.return_general_paper_info_from_haiku(filepath,pdfName,api_key_claude)
                   
             
                 generalPaperInfo['scibert'] = apiManagerClass.get_single_scibert_embedding(generalPaperInfo, ngrok_domain_name)
@@ -124,6 +125,12 @@ def process_pdf_route():
                     if 'scibert' in paper['paper_info']:
                         del paper['paper_info']['scibert']
                 # Clean up and return
+                
+                searchTermsArrayToScrape = metricsCalculator.extract_all_values(result.get('abstract_info',[]))
+                print("Search terms array to scrape is", searchTermsArrayToScrape)
+                titles = apiManagerClass.scrapeOpenAlexTitles(searchTermsArrayToScrape)
+                relativelySimilarPapers = metricsCalculator.mark_gem_papers(relativelySimilarPapers, titles)
+                #print("Titles returned after scraping are", titles)
                 os.remove(filepath)
                 result['seed_paper'] = seedPaper
                 result['similarity_results'] = relativelySimilarPapers
@@ -199,6 +206,15 @@ def explain_similarity():
         print(f"Error in explain_similarity: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+@upload_bp.route('/get-paper-link', methods=['POST'])
+def get_paper_link():
+    # Expect a JSON payload with a key 'paper_title'
+    data = request.get_json()
+    paper_title = data.get('paper_title', "")
+    print("Paper title is", paper_title)
+    # Call your helper function to search by paper title
+    paperLinkAndTitle = apiManagerClass.get_paper_link(paper_title, api_key_semantic)
+    return jsonify(paperLinkAndTitle)
 
 
 

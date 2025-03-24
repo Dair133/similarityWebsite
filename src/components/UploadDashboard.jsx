@@ -35,16 +35,7 @@ function UploadDashboard({ onResultsUpdate, toggleGraphView, pdfFile, onPdfUploa
 
   return (
     <div style={styles.dashboardContainer}>
-      <h1 style={{ 
-        textAlign: 'center', 
-        color: '#333', 
-        margin: '15px 0',
-        padding: '0 20px', 
-        height: '30px',
-        fontSize: '24px'
-      }}>
-        Research Paper Analysis
-      </h1>
+
       
       <div style={styles.contentArea}>
         <div style={styles.uploadContainer}>

@@ -57,7 +57,7 @@ class APIPersonalPCClass:
      try:
         # Create raw socket connection
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.settimeout(15)  # 15 second timeout for batch processing
+        sock.settimeout(60)  # 15 second timeout for batch processing
         
         # Wrap with SSL for HTTPS
         context = ssl.create_default_context()
