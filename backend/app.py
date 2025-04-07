@@ -45,6 +45,7 @@ api_key_semantic = os.getenv('SEMANTIC_API_KEY')
 api_key_claude = os.getenv('HAIKU_API_KEY')
 api_key_deepseek = os.getenv('DEEPSEEK_API_KEY')
 ngrok_domain_name = os.getenv('NGROK_DOMAIN')
+local_domain = os.getenv('LOCAL_DOMAIN')
 upload_bp = Blueprint('upload', __name__)
 # Create an upload folder for temporary file storage
 UPLOAD_FOLDER = 'uploads'
@@ -130,7 +131,7 @@ def process_pdf_route():
                 print("Search terms array to scrape is", searchTermsArrayToScrape)
                 titles = apiManagerClass.scrapeOpenAlexTitles(searchTermsArrayToScrape)
                 relativelySimilarPapers = metricsCalculator.mark_gem_papers(relativelySimilarPapers, titles)
-                #print("Titles returned after scraping are", titles)
+                print("Titles returned after scraping are", titles)
                 os.remove(filepath)
                 result['seed_paper'] = seedPaper
                 result['similarity_results'] = relativelySimilarPapers
@@ -173,6 +174,137 @@ def process_pdf_route():
             'error': str(e),
             'details': traceback.format_exc()
         }), 500
+
+
+@upload_bp.route('/run-tests', methods=['POST'])
+def run_tests_route():
+    try:
+        # Define path to the Excel file with test data
+        test_data_path = os.path.join(os.getcwd(), "test_data", "test_papers_500.xlsx")
+        
+        # Create directory for results if it doesn't exist
+        results_dir = os.path.join(os.getcwd(), "test_results")
+        os.makedirs(results_dir, exist_ok=True)
+        
+        # Read the Excel file with paper data
+        import pandas as pd
+        papers_df = pd.read_excel(test_data_path)
+        
+        total_papers = len(papers_df)
+        processed_papers = 0
+        
+        # Log the start of the test
+        print(f"Starting test with {total_papers} papers")
+        
+        # Process each paper
+        for index, paper_row in papers_df.iterrows():
+            paper_id = paper_row.get('paper_id', f"paper_{index}")
+            
+            print(f"Processing paper {processed_papers + 1}/{total_papers}: {paper_id}")
+            start_time = time.time()
+            
+            try:
+                # Extract paper info from the Excel row
+                generalPaperInfo = {
+                    'paperId': paper_row.get('paper_id'),
+                    'title': paper_row.get('title'),
+                    'abstract': paper_row.get('abstract'),
+                    'authors': paper_row.get('authors', []),
+                    'references': paper_row.get('references', []),
+                    'citations': paper_row.get('citations', []),
+                    # Add other fields as needed
+                }
+                
+                # Generate search terms
+                paperSearchTermsAndTitle = apiManagerClass.extract_search_terms_from_paper_info(generalPaperInfo, api_key_claude)
+                
+                # Get SciBert embeddings
+                generalPaperInfo['scibert'] = apiManagerClass.get_single_scibert_embedding(generalPaperInfo, local_domain)
+                
+                # Process paper attributes
+                parsedSeedReferenceList, parsedSeedCitationList, parsedSeedAuthorList = metricsCalculator.return_attributes_lists(generalPaperInfo)
+                
+                # Get related papers through search
+                papersReturnedThroughSearch = apiManagerClass.return_found_papers(
+                    api_key_semantic=api_key_semantic, 
+                    paperSearchTermsAndTitle=paperSearchTermsAndTitle,
+                    parsedSeedAuthorList=parsedSeedAuthorList
+                )
+                
+                # Add poison pill papers (for testing)
+                papersReturnedThroughSearch = localDatabaseManager.load_poison_pill_papers(
+                    papersReturnedThroughSearch, 
+                    "poison_pill_papers_With_SciBert.xlsx"
+                )
+                
+                # Get batch embeddings and calculate shared attributes
+                papersReturnedThroughSearch = apiManagerClass.get_batch_scibert_embeddings(papersReturnedThroughSearch)
+                papersReturnedThroughSearch = metricsCalculator.calculate_shared_attributes(
+                    papersReturnedThroughSearch,
+                    parsedSeedReferenceList,
+                    parsedSeedCitationList,
+                    parsedSeedAuthorList
+                )
+                
+                # Remove duplicates
+                papersReturnedThroughSearch = processor.remove_duplicates(papersReturnedThroughSearch)
+                
+                # Create seed paper structure
+                seedPaper = {
+                    'search_type': 'seed_paper',
+                    'paper_info': generalPaperInfo
+                }
+                
+                # Compare papers
+                similarityResults = apiManagerClass.compare_papers_batch(seedPaper, papersReturnedThroughSearch)
+                
+                # Get similar papers and recommendations
+                relativelySimilarPapers = metricsCalculator.get_relatively_similar_papers(similarityResults['compared_papers'])
+                recommendations = metricsCalculator.get_recommendations(seedPaper, relativelySimilarPapers)
+                
+                # Remove SciBert embeddings before saving (to reduce file size)
+                for paper in relativelySimilarPapers:
+                    if 'scibert' in paper['paper_info']:
+                        del paper['paper_info']['scibert']
+                
+                # Prepare result
+                result = {
+                    'seed_paper': seedPaper,
+                    'similarity_results': relativelySimilarPapers,
+                    'recommendations': recommendations,
+                    'similarity_metrics': similarityResults
+                }
+                
+                # Remove SciBert from seed paper as well
+                if 'scibert' in result['seed_paper']['paper_info']:
+                    del result['seed_paper']['paper_info']['scibert']
+                searchTermsArrayToScrape = metricsCalculator.extract_all_values(result.get('abstract_info',[]))
+                titles = apiManagerClass.scrapeOpenAlexTitles(searchTermsArrayToScrape)
+                relativelySimilarPapers = metricsCalculator.mark_gem_papers(relativelySimilarPapers, titles)
+                print("Titles returned after scraping are", titles)
+                # Save result to JSON file
+                result_path = os.path.join(results_dir, f"{paper_id}_results.json")
+                with open(result_path, 'w') as f:
+                    json.dump(result, f)
+                
+                processed_papers += 1
+                end_time = time.time()
+                print(f"Completed paper {processed_papers}/{total_papers} in {end_time - start_time:.2f} seconds")
+                
+            except Exception as e:
+                print(f"Error processing paper {paper_id}: {str(e)}")
+                # Log the error but continue with the next paper
+                continue
+        
+        print(f"Test completed. Processed {processed_papers}/{total_papers} papers successfully.")
+        return jsonify({"status": "Complete", "processed_papers": processed_papers, "total_papers": total_papers}), 200
+        
+    except Exception as e:
+        print(f"Test failed with error: {str(e)}")
+        return jsonify({"status": "Failed", "error": str(e)}), 500
+
+
+
 
 @upload_bp.route('/explain-similarity', methods=['POST'])
 def explain_similarity():

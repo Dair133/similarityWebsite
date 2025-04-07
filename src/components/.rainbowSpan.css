@@ -1,0 +1,38 @@
+/* Rainbow span text that fades between various colors */
+.rainbowSpan {
+    font-weight: bold; /* Optional: Makes the text bold */
+    /* Define the rainbow gradient */
+    background: linear-gradient(
+      270deg, /* Gradient direction */
+      #ff0000, /* Red */
+      #ff7f00, /* Orange */
+      #ffff00, /* Yellow */
+      #00ff00, /* Green */
+      #ff9f06, /* Blue */
+      #d599ff, /* Indigo */
+      #b75fff  /* Violet */
+    );
+    /* Set background size - needs to be larger than 100% to allow movement */
+    background-size: 400% 400%;
+    /* Clip the background to the text */
+    -webkit-background-clip: text;
+    background-clip: text; /* Standard property */
+    /* Make the text color transparent so the background shows through */
+    -webkit-text-fill-color: transparent;
+    /* Apply the animation */
+    animation: rainbowFade 6s ease-in-out infinite;
+  }
+  
+  /* Define the keyframes for the animation */
+  @keyframes rainbowFade {
+    0% {
+      background-position: 0% 50%; /* Start position */
+    }
+    50% {
+      background-position: 100% 50%; /* Middle position */
+    }
+    100% {
+      background-position: 0% 50%; /* End position (back to start) */
+    }
+  }
+  

@@ -361,9 +361,6 @@ function EnhancedPaperView({ paper, onBack, seedPaper }) {
                 <p style={styles.abstract}>
                     <strong>Abstract:</strong> {paper.paper_info.abstract}
                 </p>
-
-
-
                 <div style={styles.section}>
                     <h3 style={styles.sectionTitle}>Similarity Metrics</h3>
                     <p>

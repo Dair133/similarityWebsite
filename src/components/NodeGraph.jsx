@@ -340,7 +340,7 @@ function NodeGraph({ results, toggleGraphView }) {
         <div ref={containerRef} style={styles.container}>
 
 
-            {/* <Legend /> */}
+            <Legend />
 
             {dimensions.width > 0 && dimensions.height > 0 && (
                 <ForceGraph2D

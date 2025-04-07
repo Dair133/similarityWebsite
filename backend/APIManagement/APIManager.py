@@ -203,23 +203,75 @@ class APIManagerClass:
     
     
     def get_batch_scibert_embeddings(self, papersReturnedThroughSearch):
-        # Now we need to form go through each paper and form an abstract title Dict
-        title_abstract_dict = {}
-        for paper in papersReturnedThroughSearch:
-            paperAbstract = paper['paper_info']['abstract']
-            paperTitle = paper['paper_info']['title']
-            title_abstract_dict[paperTitle] = paperAbstract
+        # --- Robustness Check ---
+        if not papersReturnedThroughSearch:
+            print("Warning: get_batch_scibert_embeddings received an empty or None list.")
+            return []  # Return empty list if input is empty
 
-        # Now that we have a paper abstract dict we can pas it to get our batch scibert embeddings       
-        # We can use our title to query for our abstract, this is just so that we make sure that SciBert + abstract are paired
-        # correctly , we dont want our indices to messup and for the wrong scibert to be paired with the wrong title
-        # return value will be title, SciBert dict.
-        returnedJSONData = self.personalPCClass.send_batch_scibert_request(title_abstract_dict)
-        returnedEmbeddingsDict = returnedJSONData.get("embeddings", {})
+        # Filter papers and build the dictionary ONLY with valid titles and abstracts
+        title_abstract_dict = {}
+        valid_papers_for_batching = []  # Keep track of papers sent
+
         for paper in papersReturnedThroughSearch:
-            paper['paper_info']['scibert'] = returnedEmbeddingsDict[paper['paper_info']['title']]
-            # print(paper['paper_info']['scibert'])
-            
+            # Check paper structure and ensure title/abstract are not None
+            if (paper and
+                isinstance(paper.get('paper_info'), dict) and
+                paper['paper_info'].get('title') is not None and
+                paper['paper_info'].get('abstract') is not None):
+                # Use title as key, add abstract
+                paper_title = paper['paper_info']['title']
+                paper_abstract = paper['paper_info']['abstract']
+                title_abstract_dict[paper_title] = paper_abstract
+                valid_papers_for_batching.append(paper)  # Add paper to the list of those being processed
+            else:
+                # Log or handle papers with missing info if needed
+                paper_title = paper.get('paper_info', {}).get('title', 'MISSING_TITLE')
+                print(f"Warning: Skipping paper '{paper_title}' for batch embedding due to missing title or abstract.")
+                # Ensure scibert key exists even if skipped, assign None
+                if paper and isinstance(paper.get('paper_info'), dict):
+                    paper['paper_info']['scibert'] = None
+
+        # --- Early Exit if No Valid Papers ---
+        if not title_abstract_dict:
+            print("No valid papers with titles and abstracts found to send for batch embedding.")
+            # All papers should have 'scibert': None assigned already
+            return papersReturnedThroughSearch
+
+        # --- API Call ---
+        returnedJSONData = self.personalPCClass.send_batch_scibert_request(title_abstract_dict)
+
+        # --- Process Response ---
+        returnedEmbeddingsDict = {}
+        if returnedJSONData and isinstance(returnedJSONData.get("embeddings"), dict):
+            returnedEmbeddingsDict = returnedJSONData["embeddings"]
+            print(f"Received {len(returnedEmbeddingsDict)} embeddings from server.")
+        else:
+            print("Warning: Failed to get batch embeddings or received invalid format from server.")
+            # If the batch request failed, assign None to all papers that were attempted
+            for paper in valid_papers_for_batching:
+                paper['paper_info']['scibert'] = None
+            return papersReturnedThroughSearch  # Return the list with None assigned
+
+        # --- Assign Embeddings Safely ---
+        # Iterate through the ORIGINAL list again to maintain order and include skipped papers
+        for paper in papersReturnedThroughSearch:
+            # Check if this paper was valid and sent (it should have a title)
+            paper_info = paper.get('paper_info')
+            if paper_info and paper_info.get('title') is not None:
+                paper_title = paper_info['title']
+                # Check if the embedding was returned for this specific title
+                if paper_title in returnedEmbeddingsDict:
+                    paper_info['scibert'] = returnedEmbeddingsDict[paper_title]
+                else:
+                    # Embedding wasn't returned OR this paper wasn't sent initially
+                    # Check if it was supposed to be sent
+                    if paper_title in title_abstract_dict:
+                        print(f"Warning: SciBERT embedding not found in server response for title: '{paper_title}'")
+                    # Ensure scibert key exists, assign None if missing or skipped
+                    if 'scibert' not in paper_info:  # Avoid overwriting if already set to None earlier
+                        paper_info['scibert'] = None
+            # else: paper was already skipped and should have scibert=None
+
         return papersReturnedThroughSearch
     
     
