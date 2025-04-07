@@ -58,8 +58,6 @@ apiManagerClass = APIManagerClass()
 
 @upload_bp.route('/process-pdf', methods=['POST'])
 def process_pdf_route():
-
-
     try:
         # Save the file
         file, pdfName = processor.validate_pdf_upload(request)
@@ -109,7 +107,7 @@ def process_pdf_route():
                 papersReturnedThroughSearch = metricsCalculator.calculate_shared_attributes(papersReturnedThroughSearch,parsedSeedReferenceList,parsedSeedCitationList, parsedSeedAuthorList,)   
 
                 print("Comparing papers...")
-                relativelySimilarPapers = processor.remove_duplicates(papersReturnedThroughSearch)
+                #relativelySimilarPapers = processor.remove_duplicates(papersReturnedThroughSearch)
    
                 
                 similarityResults = apiManagerClass.compare_papers_batch(seedPaper, papersReturnedThroughSearch)
@@ -129,9 +127,9 @@ def process_pdf_route():
                 
                 searchTermsArrayToScrape = metricsCalculator.extract_all_values(result.get('abstract_info',[]))
                 print("Search terms array to scrape is", searchTermsArrayToScrape)
-                titles = apiManagerClass.scrapeOpenAlexTitles(searchTermsArrayToScrape)
-                relativelySimilarPapers = metricsCalculator.mark_gem_papers(relativelySimilarPapers, titles)
-                print("Titles returned after scraping are", titles)
+                #titles = apiManagerClass.scrapeOpenAlexTitles(searchTermsArrayToScrape)
+                #relativelySimilarPapers = metricsCalculator.mark_gem_papers(relativelySimilarPapers, titles)
+                #print("Titles returned after scraping are", titles)
                 os.remove(filepath)
                 result['seed_paper'] = seedPaper
                 result['similarity_results'] = relativelySimilarPapers
@@ -175,6 +173,246 @@ def process_pdf_route():
             'details': traceback.format_exc()
         }), 500
 
+
+# Add this updated endpoint to your upload_routes.py file
+
+@upload_bp.route('/use-as-seed-paper', methods=['POST'])
+def use_as_seed_paper():
+    try:
+        # Get data from request
+        data = request.get_json()
+        
+        if not data or 'paper_info' not in data:
+            return jsonify({"error": "Invalid paper data provided"}), 400
+        
+        # Log the received data for debugging
+        print("Received paper data:", data)
+        
+        # Extract the paper information
+        paper_info = data['paper_info']
+        
+        # Validate required fields
+        if not paper_info.get('title') or not paper_info.get('abstract'):
+            return jsonify({"error": "Paper must have title and abstract"}), 400
+        
+        # ===== CRITICAL FIX: Always generate new search terms from Claude =====
+        # Instead of using existing search terms, we always ask Claude to generate
+        # new search terms from the paper abstract to ensure proper search
+        print("Generating search terms from paper abstract using Claude...")
+        combined_text = f"Title: {paper_info['title']}\n\nAbstract: {paper_info['abstract']}"
+        paperSearchTermsAndTitle = apiManagerClass.return_search_terms_for_text(combined_text, api_key_claude)
+        
+        # Ensure title is set correctly
+        paperSearchTermsAndTitle['title'] = paper_info['title']
+        
+        print("Generated search terms from Claude:", paperSearchTermsAndTitle)
+        
+        # Make sure we have scibert embeddings for comparison
+        # If not already present, generate them
+        if 'scibert' not in paper_info or not paper_info['scibert']:
+            print("Generating SciBERT embedding for seed paper")
+            paper_info['scibert'] = apiManagerClass.get_single_scibert_embedding(paper_info, ngrok_domain_name)
+        
+        # FIX: Ensure references, citations, authors are in the expected format
+        # metricsCalculator.return_attributes_lists expects strings that can be split,
+        # but we might receive lists
+        
+        # Handle references
+        if 'references' in paper_info:
+            if isinstance(paper_info['references'], list):
+                # Convert list to string with delimiter
+                paper_info['references'] = ';'.join(str(ref) for ref in paper_info['references'])
+            elif paper_info['references'] is None:
+                paper_info['references'] = ""
+                
+        # Handle citations
+        if 'citations' in paper_info:
+            if isinstance(paper_info['citations'], list):
+                # Convert list to string with delimiter
+                paper_info['citations'] = ';'.join(str(cite) for cite in paper_info['citations'])
+            elif paper_info['citations'] is None:
+                paper_info['citations'] = ""
+                
+        # Handle authors
+        if 'authors' in paper_info:
+            if isinstance(paper_info['authors'], list):
+                # Convert list to string with delimiter
+                paper_info['authors'] = ';'.join(str(author) for author in paper_info['authors'])
+            elif paper_info['authors'] is None:
+                paper_info['authors'] = ""
+        
+        # Parse attributes lists for comparison
+        print("Data types before parsing - references:", type(paper_info.get('references')), 
+              "citations:", type(paper_info.get('citations')), 
+              "authors:", type(paper_info.get('authors')))
+              
+        parsedSeedReferenceList, parsedSeedCitationList, parsedSeedAuthorList = metricsCalculator.return_attributes_lists(paper_info)
+        
+        # ===== CRITICAL FIX: Ensure we're calling the API search properly =====
+        print("Searching for similar papers using OpenAlex and Semantic Scholar...")
+        papersReturnedThroughSearch = apiManagerClass.return_found_papers(
+            api_key_semantic=api_key_semantic,
+            paperSearchTermsAndTitle=paperSearchTermsAndTitle,
+            parsedSeedAuthorList=parsedSeedAuthorList
+        )
+        
+        print(f"Found {len(papersReturnedThroughSearch)} papers through search")
+        
+        # If we still don't have papers, try a direct search with just the title
+        if not papersReturnedThroughSearch:
+            print("No papers found. Trying direct search with title...")
+            direct_search_terms = [{
+                'term': paper_info['title'],
+                'type': 'core_methodology'
+            }]
+            
+            # Create a simplified paperSearchTermsAndTitle with just the title as a search term
+            simpler_search = {
+                'title': paper_info['title'],
+                'search_terms': direct_search_terms
+            }
+            
+            papersReturnedThroughSearch = apiManagerClass.return_found_papers(
+                api_key_semantic=api_key_semantic,
+                paperSearchTermsAndTitle=simpler_search,
+                parsedSeedAuthorList=parsedSeedAuthorList
+            )
+            
+            print(f"Found {len(papersReturnedThroughSearch)} papers through direct title search")
+        
+        # Add test papers if needed
+        papersReturnedThroughSearch = localDatabaseManager.load_poison_pill_papers(
+            papersReturnedThroughSearch,
+            "poison_pill_papers_With_SciBert.xlsx"
+        )
+        
+        print(f"After load_poison_pill_papers: {len(papersReturnedThroughSearch)} papers")
+        
+        # Get embeddings and calculate attributes
+        print("Getting batch SciBERT embeddings...")
+        papersReturnedThroughSearch = apiManagerClass.get_batch_scibert_embeddings(papersReturnedThroughSearch)
+        
+        print(f"After get_batch_scibert_embeddings: {len(papersReturnedThroughSearch)} papers")
+        
+        print("Calculating shared attributes...")
+        papersReturnedThroughSearch = metricsCalculator.calculate_shared_attributes(
+            papersReturnedThroughSearch,
+            parsedSeedReferenceList,
+            parsedSeedCitationList, 
+            parsedSeedAuthorList
+        )
+        
+        print(f"After calculate_shared_attributes: {len(papersReturnedThroughSearch)} papers")
+        
+        # Remove duplicates
+        #print("Removing duplicates...")
+        #papersReturnedThroughSearch = processor.remove_duplicates(papersReturnedThroughSearch)
+        
+        #print(f"After remove_duplicates: {len(papersReturnedThroughSearch)} papers")
+        
+        # Create seed paper structure
+        seedPaper = {
+    'search_type': 'seed_paper',
+    'paper_info': paper_info,
+    'source_type': 'result_paper'  # Add this line to indicate it's from results
+}
+        
+        # Check if we have papers to compare
+        if not papersReturnedThroughSearch:
+            print("Warning: No papers returned through search. Adding fallback papers.")
+            # Add at least one fallback paper to avoid empty comparison
+            fallback_paper = {
+                'paper_info': {
+                    'title': 'Fallback Paper for Comparison',
+                    'abstract': 'This is a fallback paper added when no papers were found through search.',
+                    'authors': 'System',
+                    'year': '2025',
+                    'scibert': paper_info.get('scibert', [])  # Use the same embedding to ensure some similarity
+                },
+                'source_info': {
+                    'search_term': 'fallback',
+                    'search_type': 'system_generated'
+                },
+                'comparison_metrics': {
+                    'shared_reference_count': 0,
+                    'shared_citation_count': 0,
+                    'shared_author_count': 0
+                }
+            }
+            papersReturnedThroughSearch.append(fallback_paper)
+        
+        # Compare papers
+        print(f"Comparing papers with {len(papersReturnedThroughSearch)} candidate papers...")
+        similarityResults = apiManagerClass.compare_papers_batch(seedPaper, papersReturnedThroughSearch)
+        
+        # Get similar papers and recommendations
+        print("Getting relatively similar papers...")
+        relativelySimilarPapers = metricsCalculator.get_relatively_similar_papers(similarityResults.get('compared_papers', []))
+        recommendations = metricsCalculator.get_recommendations(seedPaper, relativelySimilarPapers)
+        
+        # Remove scibert embeddings to reduce response size
+        for paper in relativelySimilarPapers:
+            if 'scibert' in paper['paper_info']:
+                del paper['paper_info']['scibert']
+        
+        # Mark gem papers
+        print("Marking gem papers...")
+        # Extract search terms for OpenAlex scraping
+        if isinstance(paperSearchTermsAndTitle.get('search_terms', []), list):
+            # Direct use of search_terms list
+            raw_terms = paperSearchTermsAndTitle.get('search_terms', [])
+            # Extract the actual terms from the list of dictionaries
+            searchTermsArrayToScrape = [item.get('term', '') for item in raw_terms if isinstance(item, dict) and 'term' in item]
+        else:
+            # Try to extract from dictionary
+            try:
+                searchTermsArrayToScrape = metricsCalculator.extract_all_values(paperSearchTermsAndTitle.get('search_terms', {}))
+            except (AttributeError, TypeError):
+                print("Warning: Could not extract search terms using extract_all_values")
+                # Fallback extraction
+                searchTermsArrayToScrape = []
+                terms = paperSearchTermsAndTitle.get('search_terms', [])
+                if isinstance(terms, str):
+                    searchTermsArrayToScrape = [terms]
+                elif isinstance(terms, list):
+                    # Try to extract terms from list items if they're dictionaries
+                    for item in terms:
+                        if isinstance(item, dict) and 'term' in item:
+                            searchTermsArrayToScrape.append(item['term'])
+                        elif isinstance(item, str):
+                            searchTermsArrayToScrape.append(item)
+        
+        print(f"Search terms for scraping ({len(searchTermsArrayToScrape)}): {searchTermsArrayToScrape}")
+        titles = apiManagerClass.scrapeOpenAlexTitles(searchTermsArrayToScrape)
+        relativelySimilarPapers = metricsCalculator.mark_gem_papers(relativelySimilarPapers, titles)
+        
+        # Prepare result
+        result = {
+            'seed_paper': seedPaper,
+            'abstract_info': paperSearchTermsAndTitle,
+            'similarity_results': relativelySimilarPapers,
+            'recommendations': recommendations,
+            'test': similarityResults
+        }
+        
+        # Remove scibert from seed paper too
+        if 'scibert' in result['seed_paper']['paper_info']:
+            del result['seed_paper']['paper_info']['scibert']
+        
+        print("Successfully processed paper as seed paper")    
+        return jsonify({"success": True, "results": result}), 200
+        
+    except Exception as e:
+        import traceback
+        error_message = f"Error processing paper as seed: {str(e)}"
+        detailed_error = traceback.format_exc()
+        print(f"Detailed error: {detailed_error}")
+        
+        return jsonify({
+            'success': False,
+            'error': error_message,
+            'traceback': detailed_error
+        }), 500
 
 @upload_bp.route('/run-tests', methods=['POST'])
 def run_tests_route():

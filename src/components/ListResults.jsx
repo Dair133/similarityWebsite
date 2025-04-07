@@ -1,17 +1,45 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import FadeIn from 'react-fade-in';
-import EnhancedPaperView from './EnhancedPaperView'; // Import the enhanced view component
+import EnhancedPaperView from './EnhancedPaperView';
 import SimplePulseButton from './module/buttons/PulseButton';
-function ListResults({ results, toggleGraphView, setParentResults, showGraph }) {
-  console.log(results);
+import Spinner from './module/animations/Spinner';
+
+function ListResults({ results, toggleGraphView, setParentResults, showGraph, onClearPdf, hoveredNodeIndex }) {
   const [localResults, setLocalResults] = useState(null);
   const [tooltipVisible, setTooltipVisible] = useState({});
-  const [selectedPaper, setSelectedPaper] = useState(null); // Track selected paper
+  const [selectedPaper, setSelectedPaper] = useState(null);
+  const [isProcessingSeedPaper, setIsProcessingSeedPaper] = useState(false);
+  const [processingError, setProcessingError] = useState(null);
+  
+  // Create refs for each paper item
+  const paperRefs = useRef([]);
+  
   const displayResults = localResults || results;
+  
+  // Reset paper refs when results change
+  useEffect(() => {
+    if (displayResults && displayResults.similarity_results) {
+      paperRefs.current = displayResults.similarity_results.map(() => React.createRef());
+    }
+  }, [displayResults]);
+  
+  // Scroll to paper when hoveredNodeIndex changes
+  useEffect(() => {
+    if (hoveredNodeIndex !== null && hoveredNodeIndex !== undefined && 
+        paperRefs.current[hoveredNodeIndex] && 
+        paperRefs.current[hoveredNodeIndex].current) {
+      
+      paperRefs.current[hoveredNodeIndex].current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center'
+      });
+    }
+  }, [hoveredNodeIndex]);
+
   const styles = {
     container: {
-      width: '25%',
-      height: '95vh',
+      width: '100%',
+      height: '100%',
       backgroundColor: '#10253E',
       color: '#F7F3E9',
       padding: '2%',
@@ -57,7 +85,7 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
       position: 'absolute',
       top: '2px',
       bottom: '2px',
-      width: '50%',
+      width: '20%',
       backgroundColor: '#3E7CB9',
       borderRadius: '18px',
       transition: 'left 0.3s ease-in-out',
@@ -104,6 +132,10 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
       borderRadius: '4px',
       fontFamily: '"Montserrat", sans-serif',
       fontWeight: '500',
+      transition: 'background-color 0.3s',
+    },
+    buttonHover: {
+      backgroundColor: '#2A5986',
     },
     NodeGraphContainer: {
       visibility: 'hidden',
@@ -122,6 +154,12 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
       marginBottom: '15px',
       borderRadius: '6px',
       borderLeft: '3px solid #3E7CB9',
+      transition: 'all 0.3s ease',
+    },
+    highlightedItem: {
+      boxShadow: '0 0 15px #3E7CB9',
+      border: '2px solid #3E7CB9',
+      backgroundColor: '#1A3A5F',
     },
     paperTitle: {
       fontFamily: '"Montserrat", sans-serif',
@@ -262,9 +300,65 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
       borderRadius: '4px',
       fontFamily: '"Montserrat", sans-serif',
       fontWeight: '500',
+      transition: 'background-color 0.3s',
     },
+    loadingContainer: {
+      display: 'flex', 
+      flexDirection: 'column', 
+      alignItems: 'center', 
+      justifyContent: 'center',
+      height: '50%'
+    },
+    errorMessage: { 
+      padding: '10px', 
+      backgroundColor: '#ff6b6b30', 
+      borderLeft: '3px solid #ff6b6b',
+      marginBottom: '15px',
+      color: '#F7F3E9'
+    }
   };
 
+  // Add keyframe animation for pulse effect
+  useEffect(() => {
+    // Create style element 
+    const styleEl = document.createElement('style');
+    
+    // Define the keyframe animation
+    const keyframes = `
+      @keyframes pulse {
+        0% { box-shadow: 0 0 5px rgba(62, 124, 185, 0.8); }
+        50% { box-shadow: 0 0 20px rgba(62, 124, 185, 1); }
+        100% { box-shadow: 0 0 5px rgba(62, 124, 185, 0.8); }
+      }
+    `;
+    
+    styleEl.innerHTML = keyframes;
+    document.head.appendChild(styleEl);
+    
+    // Clean up
+    return () => {
+      document.head.removeChild(styleEl);
+    };
+  }, []);
+  
+  // Listen for custom event to show enhanced view
+  useEffect(() => {
+    const handleShowEnhancedViewEvent = (event) => {
+      const { paper } = event.detail;
+      if (paper) {
+        handleShowEnhancedView(paper);
+      }
+    };
+    
+    // Add event listener
+    document.addEventListener('showEnhancedView', handleShowEnhancedViewEvent);
+    
+    // Clean up
+    return () => {
+      document.removeEventListener('showEnhancedView', handleShowEnhancedViewEvent);
+    };
+  }, []);
+  
   // Helper function to format authors
   const formatAuthors = (authors) => {
     if (!authors) return '';
@@ -383,26 +477,82 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
   const handleShowEnhancedView = (paper) => {
     setSelectedPaper(paper);
   };
-
-  // Function to handle going back to the list view
-  const handleBackToList = () => {
+  
+  // Function to handle setting a paper as a seed paper
+  const handleUseAsSeedPaper = async (paperData) => {
+    // Show the loading state
+    setIsProcessingSeedPaper(true);
+    setProcessingError(null);
+    
+    try {
+      // Prepare paper data to send to backend
+      const payload = {
+        paper_info: paperData.paper_info,
+        search_terms: paperData.source_info?.search_term || [],
+        search_type: paperData.source_info?.search_type || 'core_methodology'
+      };
+  
+      // Make API call to the backend
+      const response = await fetch('http://localhost:5000/use-as-seed-paper', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+  
+      if (!response.ok) {
+        throw new Error(`Request failed with status: ${response.status}`);
+      }
+  
+      const data = await response.json();
+      
+      // If successful, update the UI with new results
+      if (data.success) {
+        // Update both local state and parent state
+        setLocalResults(data.results);
+        if (setParentResults && typeof setParentResults === 'function') {
+          setParentResults(data.results);
+        }
+      } else {
+        throw new Error(data.error || 'Failed to set as seed paper');
+      }
+    } catch (error) {
+      console.error('Error setting paper as seed:', error);
+      setProcessingError(error.message || 'Failed to set paper as seed');
+    } finally {
+      setIsProcessingSeedPaper(false);
+    }
+  };
+  
+  const handleBackToList = (data = null) => {
+    // First clear the selected paper
     setSelectedPaper(null);
+    
+    // Check if this is a special action to use a paper as seed paper
+    if (data && data.action === 'use_as_seed_paper' && data.paperData) {
+      // Process the paper as a seed paper
+      handleUseAsSeedPaper(data.paperData);
+    }
   };
 
   if (selectedPaper) {
-    // Wrap the enhanced view in the same container as the list
+    const uniqueKey = selectedPaper.paper_info?.doi || selectedPaper.paper_info?.title || `paper-${JSON.stringify(selectedPaper)}`; // Choose a reliable unique identifier
     return (
       <div style={styles.container}>
-        <EnhancedPaperView 
-          paper={selectedPaper} 
-          onBack={handleBackToList} 
-          seedPaper={localResults?.seed_paper || displayResults.seed_paper} 
+        <EnhancedPaperView
+          // ---- Add the key prop here ----
+          key={uniqueKey}
+          // ---- Pass other props as before ----
+          paper={selectedPaper}
+          onBack={handleBackToList}
+          seedPaper={localResults?.seed_paper || displayResults?.seed_paper} // Add optional chaining for displayResults
+          onClearPdf={onClearPdf}
         />
       </div>
     );
   }
 
-  // Helper function to generate fake results for testing
   // Helper function to generate fake results for testing
   const generateFakeResults = () => {
     const authorPool = [
@@ -484,141 +634,173 @@ function ListResults({ results, toggleGraphView, setParentResults, showGraph }) 
     };
 
     setLocalResults(fakeResultsData);
-    setParentResults(fakeResultsData);
+    if (setParentResults) {
+      setParentResults(fakeResultsData);
+    }
   };
-
-
 
   return (
     <div style={styles.container}>
-      {/* Toggle component moved here from ParentDashboard */}
-      <div style={styles.toggleContainer}>
-        <div style={styles.switchContainer}>
-          <span
-            style={{
-              ...styles.switchOption,
-              ...(!showGraph ? styles.activeOption : {}),
-            }}
-            onClick={() => {
-              if (showGraph) toggleGraphView();
-            }}
-          >
-            PDF View
-          </span>
-          <span
-            style={{
-              ...styles.switchOption,
-              ...(showGraph ? styles.activeOption : {}),
-            }}
-            onClick={() => {
-              if (!showGraph) toggleGraphView();
-            }}
-          >
-            Node Graph View
-          </span>
-          <div
-            style={{
-              ...styles.slider,
-              left: showGraph ? 'calc(50% - 2px)' : '2px',
-            }}
-          />
+      {/* Show loading state when processing a seed paper */}
+      {isProcessingSeedPaper ? (
+        <div style={styles.loadingContainer}>
+          <h2 style={styles.title}>Processing New Seed Paper</h2>
+          <div style={{ marginBottom: '20px' }}>
+            <Spinner size={32} color="#3498db" />
+          </div>
+          <p style={{ color: '#F7F3E9', textAlign: 'center' }}>
+            Please wait while we find papers similar to your new seed paper...
+          </p>
         </div>
-      </div>
-
-      <h2 style={styles.title}>List Of Results</h2>
-      <button style={styles.button} onClick={generateFakeResults}>
-        Generate Examples
-      </button>
-
-      {displayResults && (
-        <div style={styles.results}>
-          <h3 style={styles.sectionHeading}>Seed Paper</h3>
-          <div style={styles.listItem}>
-            <div style={styles.paperTitle}>{displayResults.seed_paper.paper_info.title}</div>
-            {displayResults.seed_paper.paper_info.authors && (
-              <div style={styles.paperInfo}>
-                <strong>Authors: </strong>
-                {formatAuthors(displayResults.seed_paper.paper_info.authors)}
-              </div>
-            )}
-            <div style={styles.paperAbstract}>
-              {displayResults.seed_paper.paper_info.abstract}
+      ) : (
+        // Otherwise show the regular list view
+        <>
+          {/* Toggle component moved here from ParentDashboard */}
+          <div style={styles.toggleContainer}>
+            <div style={styles.switchContainer}>
+              <span
+                style={{
+                  ...styles.switchOption,
+                  ...(!showGraph ? styles.activeOption : {}),
+                }}
+                onClick={() => {
+                  if (showGraph) toggleGraphView();
+                }}
+              >
+                PDF View
+              </span>
+              <span
+                style={{
+                  ...styles.switchOption,
+                  ...(showGraph ? styles.activeOption : {}),
+                }}
+                onClick={() => {
+                  if (!showGraph) toggleGraphView();
+                }}
+              >
+                Node Graph View
+              </span>
+              <div
+                style={{
+                  ...styles.slider,
+                  left: showGraph ? 'calc(50% - 2px)' : '2px',
+                }}
+              />
             </div>
           </div>
-
-          <h3 style={styles.sectionHeading}>Similar Papers</h3>
-          <ol style={{ listStyle: 'none', padding: 0 }}>
-            <FadeIn>
-              {displayResults.similarity_results.map((paper, index) => (
-                <li key={index} style={styles.listItem}>
-                  <div style={styles.paperTitle}>{paper.paper_info.title}</div>
-                  {paper.paper_info.authors && (
-                    <div style={styles.paperInfo}>
-                      <strong>Authors: </strong>
-                      {formatAuthors(paper.paper_info.authors)}
-                    </div>
-                  )}
-
-                  <OverlapBox paper={paper} index={index} />
-
+  
+          <h2 style={styles.title}>List Of Results</h2>
+          
+          {/* Show error message if there was an error processing the seed paper */}
+          {processingError && (
+            <div style={styles.errorMessage}>
+              <strong>Error:</strong> {processingError}
+            </div>
+          )}
+          
+          <button 
+            style={styles.button} 
+            onClick={generateFakeResults}
+            onMouseOver={(e) => {
+              e.currentTarget.style.backgroundColor = '#2A5986';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.backgroundColor = '#3E7CB9';
+            }}
+          >
+            Generate Examples
+          </button>
+  
+          {displayResults && (
+            <div style={styles.results}>
+              <h3 style={styles.sectionHeading}>Seed Paper</h3>
+              <div style={styles.listItem}>
+                <div style={styles.paperTitle}>{displayResults.seed_paper.paper_info.title}</div>
+                {displayResults.seed_paper.paper_info.authors && (
                   <div style={styles.paperInfo}>
-                    {/* Display Similarity Score */}
-                    <strong>Similarity Score: </strong>
-                    <span style={styles.paperMetric}>{paper.similarity_score}</span>
-
-                    {/* Wrap the conditional GEM marker in a div for spacing */}
-                    <div>
-                      {/* Conditionally render "IS A GEM" with rainbow style */}
-                      {paper.is_gem && (
-                        <span style={styles.paperMetric} className='rainbowSpan'> {/* Use className for CSS class */}
-                          IS A GEM
-                          {/* You might not need paper.is_gem here if the text is static */}
-                          {/* {paper.is_gem} */}
-                        </span>
+                    <strong>Authors: </strong>
+                    {formatAuthors(displayResults.seed_paper.paper_info.authors)}
+                  </div>
+                )}
+                <div style={styles.paperAbstract}>
+                  {displayResults.seed_paper.paper_info.abstract}
+                </div>
+              </div>
+  
+              <h3 style={styles.sectionHeading}>Similar Papers</h3>
+              <ol style={{ listStyle: 'none', padding: 0 }}>
+                <FadeIn>
+                  {displayResults.similarity_results.map((paper, index) => (
+                    <li 
+                      key={index} 
+                      ref={paperRefs.current[index]}
+                      style={{
+                        ...styles.listItem,
+                        ...(hoveredNodeIndex === index ? styles.highlightedItem : {}),
+                        animation: hoveredNodeIndex === index ? 'pulse 1.5s infinite' : 'none'
+                      }}
+                    >
+                      <div style={styles.paperTitle}>{paper.paper_info.title}</div>
+                      {paper.paper_info.authors && (
+                        <div style={styles.paperInfo}>
+                          <strong>Authors: </strong>
+                          {formatAuthors(paper.paper_info.authors)}
+                        </div>
                       )}
-                      {/* Conditionally render "NOT A GEM" */}
-                      {!paper.is_gem && (
-                        <span style={styles.paperMetric}>
-                          NOT A GEM
-                          {/* You might not need paper.is_gem here */}
-                          {/* {paper.is_gem} */}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-
-                  <div style={styles.paperInfo}>
-                    <strong>Shared: </strong>
-                    <span style={styles.paperMetric}>{paper.comparison_metrics.shared_reference_count}</span> references,
-                    <span style={styles.paperMetric}> {paper.comparison_metrics.shared_citation_count}</span> citations
-                  </div>
-
-                  <div style={styles.paperAbstract}>
-                    <strong>Abstract: </strong> {paper.paper_info.abstract}
-                  </div>
-                  {/* <button
-                    style={styles.enhancedViewButton}
-                    onClick={() => handleShowEnhancedView(paper)}
-                  >
-                    Enhanced Paper View
-                  </button> */}
-                  <SimplePulseButton
-                    buttonText={"Enhanced Paper View"}
-                    onClick={() => handleShowEnhancedView(paper)}
-                    customStyle={{
-                      fontSize: '14px',
-                      width: '200px',
-                      fontWeight: '700',
-                      backgroundColor: '#94B4DC',
-                      width: '80%',
-                    }}
-                  />
-                </li>
-              ))}
-            </FadeIn>
-          </ol>
-        </div>
+  
+                      <OverlapBox paper={paper} index={index} />
+  
+                      <div style={styles.paperInfo}>
+                        {/* Display Similarity Score */}
+                        <strong>Similarity Score: </strong>
+                        <span style={styles.paperMetric}>{paper.similarity_score}</span>
+  
+                        {/* Wrap the conditional GEM marker in a div for spacing */}
+                        <div>
+                          {/* Conditionally render "IS A GEM" with rainbow style */}
+                          {paper.is_gem && (
+                            <span style={styles.paperMetric} className='rainbowSpan'>
+                              IS A GEM
+                            </span>
+                          )}
+                          {/* Conditionally render "NOT A GEM" */}
+                          {!paper.is_gem && (
+                            <span style={styles.paperMetric}>
+                              NOT A GEM
+                            </span>
+                          )}
+                        </div>
+                      </div>
+  
+  
+                      <div style={styles.paperInfo}>
+                        <strong>Shared: </strong>
+                        <span style={styles.paperMetric}>{paper.comparison_metrics.shared_reference_count}</span> references,
+                        <span style={styles.paperMetric}> {paper.comparison_metrics.shared_citation_count}</span> citations
+                      </div>
+  
+                      <div style={styles.paperAbstract}>
+                        <strong>Abstract: </strong> {paper.paper_info.abstract}
+                      </div>
+                      
+                      <SimplePulseButton
+                        buttonText={"Enhanced Paper View"}
+                        onClick={() => handleShowEnhancedView(paper)}
+                        customStyle={{
+                          fontSize: '14px',
+                          width: '200px',
+                          fontWeight: '700',
+                          backgroundColor: '#94B4DC',
+                          width: '80%',
+                        }}
+                      />
+                    </li>
+                  ))}
+                </FadeIn>
+              </ol>
+            </div>
+          )}
+        </>
       )}
     </div>
   );

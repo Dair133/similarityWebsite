@@ -2,9 +2,15 @@ import React, { useState, useEffect } from 'react';
 import FadeIn from 'react-fade-in';
 import SimplePulseButton from './module/buttons/PulseButton';
 import Spinner from './module/animations/Spinner'; // adjust the path as needed
-function EnhancedPaperView({ paper, onBack, seedPaper }) {
+function EnhancedPaperView({ paper, onBack, seedPaper, onClearPdf }) {
     // Add state for similarity explanation
     const [similarityExplanation, setSimilarityExplanation] = useState(null);
+
+    // Add these state variables at the beginning of your EnhancedPaperView component
+const [showConfirmation, setShowConfirmation] = useState(false);
+    const [isSettingSeedPaper, setIsSettingSeedPaper] = useState(false);
+    const [seedPaperSuccess, setSeedPaperSuccess] = useState(false);
+    const [seedPaperError, setSeedPaperError] = useState(null);
 
     const [isExplaining, setIsExplaining] = useState(false);
     const [isExplained, setIsExplained] = useState(false);
@@ -191,7 +197,24 @@ function EnhancedPaperView({ paper, onBack, seedPaper }) {
             .map(word => word.charAt(0).toUpperCase() + word.slice(1))
             .join(' ');
     };
+// Function to handle confirmation (Yes button)
+const confirmUseSeedPaper = () => {
+    // Call the onClearPdf function if available
+    if (onClearPdf && typeof onClearPdf === 'function') {
+      onClearPdf();
+    }
+    
+    // Then continue with setting the paper as seed
+    onBack({ 
+      action: 'use_as_seed_paper',
+      paperData: paper
+    });
+  };
 
+// Function to cancel (No button)
+const cancelUseSeedPaper = () => {
+    setShowConfirmation(false);
+};
     // Function to explain similarity
     const explainSimilarity = async () => {
         // Reset states
@@ -301,10 +324,63 @@ function EnhancedPaperView({ paper, onBack, seedPaper }) {
 
 
 
+// Add this function to handle setting a paper as seed paper
+const useAsSeedPaper = async () => {
+    // Reset states
+    setIsSettingSeedPaper(true);
+    setSeedPaperSuccess(false);
+    setSeedPaperError(null);
+
+    try {
+        // Prepare paper data to send to backend
+        const paperData = {
+            paper_info: paper.paper_info,
+            // Include any additional metrics or data that might be needed
+            search_terms: paper.source_info?.search_term || [],
+            search_type: paper.source_info?.search_type || 'core_methodology'
+        };
+
+        // Make API call to the backend
+        const response = await fetch('http://localhost:5000/use-as-seed-paper', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(paperData),
+        });
+
+        if (!response.ok) {
+            throw new Error(`Request failed with status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        // If successful, notify the parent component to update the UI
+        if (data.success) {
+            setSeedPaperSuccess(true);
+            
+            // Navigate back to the list view and update with new results
+            if (onBack && typeof onBack === 'function') {
+                // We'll modify onBack to accept new results
+                onBack(data.results);
+            }
+        } else {
+            throw new Error(data.error || 'Failed to set as seed paper');
+        }
+    } catch (error) {
+        console.error('Error setting paper as seed:', error);
+        setSeedPaperError(error.message || 'Failed to set paper as seed');
+    } finally {
+        setIsSettingSeedPaper(false);
+    }
+};
 
 
 
-
+// Function to handle the initial button click
+const handleSeedPaperClick = () => {
+    setShowConfirmation(true);
+};
 
     const getDisabledExplanationButton = () => {
         if (isExplaining || isExplained) {
@@ -435,17 +511,53 @@ function EnhancedPaperView({ paper, onBack, seedPaper }) {
                         disabled={getDisabledExplanationButton()}
                     />
 
-                    <SimplePulseButton
-                        onClick={null}
-                        buttonText={"Use this paper as seed paper 🌱"}
-                        customStyle={{
-                            fontSize: '14px',
-                            fontWeight: '700',
-                            backgroundColor: '#94B4DC',
-                            width: '100%',
-                            marginBottom: '15px'
-                        }}
-                    />
+{/* Replace the existing seed paper button with this */}
+{!showConfirmation ? (
+    <SimplePulseButton
+        onClick={handleSeedPaperClick}
+        buttonText={"Use this paper as seed paper 🌱"}
+        customStyle={{
+            fontSize: '14px',
+            fontWeight: '700',
+            backgroundColor: '#94B4DC',
+            width: '100%',
+            marginBottom: '15px'
+        }}
+    />
+) : (
+    <div>
+        <div style={{ 
+            fontSize: '14px', 
+            textAlign: 'center', 
+            marginBottom: '10px',
+            color: '#EEE8D9'
+        }}>
+            Are you sure you want to clear results and use this paper as seed paper?
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
+            <SimplePulseButton
+                onClick={cancelUseSeedPaper}
+                buttonText={"No, keep current results"}
+                customStyle={{
+                    fontSize: '14px',
+                    fontWeight: '700',
+                    backgroundColor: '#94B4DC',
+                    width: '48%',
+                }}
+            />
+            <SimplePulseButton
+                onClick={confirmUseSeedPaper}
+                buttonText={"Yes, use as seed paper"}
+                customStyle={{
+                    fontSize: '14px',
+                    fontWeight: '700',
+                    backgroundColor: '#6ECF6E',
+                    width: '48%',
+                }}
+            />
+        </div>
+    </div>
+)}
 
                     <SimplePulseButton
                         onClick={findPaperOnline}

@@ -10,7 +10,7 @@ function UploadPDF({ onResultsUpdate, toggleGraphView, pdfFile, onPdfUpload, onC
     const [dots, setDots] = useState('');
     const fileInputRef = useRef(null);
     const [searchMode, setSearchMode] = useState('upload'); // 'upload' or 'search'
-
+    const [usingSeedFromResults, setUsingSeedFromResults] = useState(false);
     // Generate preview URL
     useEffect(() => {
         let fileUrl;
@@ -22,6 +22,26 @@ function UploadPDF({ onResultsUpdate, toggleGraphView, pdfFile, onPdfUpload, onC
         }
         return () => fileUrl && URL.revokeObjectURL(fileUrl);
     }, [pdfFile]);
+
+    // Add a function to clear the results:
+    const handleClearResults = () => {
+        onClearPdf();
+        onResultsUpdate(null);
+        setUsingSeedFromResults(false);
+    };
+    useEffect(() => {
+        if (results && results.seed_paper && results.seed_paper.source_type === 'result_paper') {
+            setUsingSeedFromResults(true);
+
+            // Clear the PDF file when using a result as seed paper
+            if (pdfFile) {
+                onClearPdf();
+            }
+        } else {
+            setUsingSeedFromResults(false);
+        }
+    }, [results, pdfFile, onClearPdf]);
+
 
     // Handle file change
     const handleFileChange = (event) => {
@@ -114,168 +134,168 @@ function UploadPDF({ onResultsUpdate, toggleGraphView, pdfFile, onPdfUpload, onC
         }
     };
 
-   // Styles (No changes needed here)
+    // Styles (No changes needed here)
     const styles = {
-        container: { 
-          width: '100%', 
-          height: '100%',
-          backgroundColor: '#53769A', 
-          boxSizing: 'border-box',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '1rem'
+        container: {
+            width: '100%',
+            height: '100%',
+            backgroundColor: '#53769A',
+            boxSizing: 'border-box',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '1rem'
         },
-        innerBox: { 
-          backgroundColor: 'white', 
-          borderRadius: '8px', 
-          padding: '1.5rem', 
-          width: '90%',
-          height: '90%',
-          boxSizing: 'border-box',
-          display: 'flex',
-          flexDirection: 'column',
-          overflow: 'hidden',  // Hide overflow at this level
-          boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)' 
+        innerBox: {
+            backgroundColor: 'white',
+            borderRadius: '8px',
+            padding: '1.5rem',
+            width: '90%',
+            height: '90%',
+            boxSizing: 'border-box',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',  // Hide overflow at this level
+            boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)'
         },
-        title: { 
-          fontSize: '22px', 
-          color: '#333', 
-          marginBottom: '1rem',
-          fontWeight: 'bold'
+        title: {
+            fontSize: '22px',
+            color: '#333',
+            marginBottom: '1rem',
+            fontWeight: 'bold'
         },
-        input: { 
-          width: 0, 
-          height: 0, 
-          opacity: 0, 
-          overflow: 'hidden', 
-          position: 'absolute', 
-          zIndex: -1 
+        input: {
+            width: 0,
+            height: 0,
+            opacity: 0,
+            overflow: 'hidden',
+            position: 'absolute',
+            zIndex: -1
         },
-        label: { 
-          width: '100%', 
-          padding: '1rem', 
-          border: '2px dashed #ccc', 
-          boxSizing: 'border-box', 
-          borderRadius: '4px', 
-          marginBottom: '1rem', 
-          cursor: 'pointer', 
-          display: 'inline-block', 
-          textAlign: 'center', 
-          backgroundColor: '#f9f9f9',
-          fontSize: '16px'
+        label: {
+            width: '100%',
+            padding: '1rem',
+            border: '2px dashed #ccc',
+            boxSizing: 'border-box',
+            borderRadius: '4px',
+            marginBottom: '1rem',
+            cursor: 'pointer',
+            display: 'inline-block',
+            textAlign: 'center',
+            backgroundColor: '#f9f9f9',
+            fontSize: '16px'
         },
-        fileInfo: { 
-          color: '#666', 
-          fontSize: '14px', 
-          marginBottom: '1rem' 
+        fileInfo: {
+            color: '#666',
+            fontSize: '14px',
+            marginBottom: '1rem'
         },
         contentArea: {
-          flex: '1 1 auto',  // Allow this to grow and shrink as needed
-          overflow: 'auto',  // Add scrollbars only to content
-          marginTop: '10px'
+            flex: '1 1 auto',  // Allow this to grow and shrink as needed
+            overflow: 'auto',  // Add scrollbars only to content
+            marginTop: '10px'
         },
-        viewerArea: { 
-          width: '100%',
-          height: 'calc(100% - 30px)', // Subtract the height of the heading
-          overflow: 'hidden'
+        viewerArea: {
+            width: '100%',
+            height: 'calc(100% - 30px)', // Subtract the height of the heading
+            overflow: 'hidden'
         },
-        errorText: { 
-          color: 'red', 
-          marginBottom: '0.5rem', 
-          textAlign: 'center' 
+        errorText: {
+            color: 'red',
+            marginBottom: '0.5rem',
+            textAlign: 'center'
         },
         clearButton: {  // Base style for all states of the clear/retry button
-          padding: '8px 16px',
-          borderRadius: '4px',
-          cursor: 'pointer',
-          marginBottom: '1rem',
-          display: 'inline-block',
-          textAlign: 'center',
-          width: '100%',
-          border: '1px solid #ccc',
-          backgroundColor: '#f2f2f2', // Default background
-          color: '#999',          // Default text color
-          fontSize: '16px'
+            padding: '8px 16px',
+            borderRadius: '4px',
+            cursor: 'pointer',
+            marginBottom: '1rem',
+            display: 'inline-block',
+            textAlign: 'center',
+            width: '100%',
+            border: '1px solid #ccc',
+            backgroundColor: '#f2f2f2', // Default background
+            color: '#999',          // Default text color
+            fontSize: '16px'
         },
         switchContainer: {
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          width: '260px',
-          height: '40px',
-          backgroundColor: '#eee',
-          borderRadius: '20px',
-          padding: '2px',
-          marginBottom: '1rem',
-          position: 'relative',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            width: '260px',
+            height: '40px',
+            backgroundColor: '#eee',
+            borderRadius: '20px',
+            padding: '2px',
+            marginBottom: '1rem',
+            position: 'relative',
         },
         switchOption: {
-          flex: '1',
-          textAlign: 'center',
-          padding: '8px 16px',
-          cursor: 'pointer',
-          zIndex: 2,
-          transition: 'color 0.3s',
-          userSelect: 'none',
-          color: '#555',
-          fontSize: '14px',
-          fontWeight: '500'
+            flex: '1',
+            textAlign: 'center',
+            padding: '8px 16px',
+            cursor: 'pointer',
+            zIndex: 2,
+            transition: 'color 0.3s',
+            userSelect: 'none',
+            color: '#555',
+            fontSize: '14px',
+            fontWeight: '500'
         },
         activeOption: {
-          color: 'white',
+            color: 'white',
         },
         slider: {
-          position: 'absolute',
-          top: '2px',
-          bottom: '2px',
-          width: '50%',
-          backgroundColor: '#007bff',
-          borderRadius: '18px',
-          transition: 'left 0.3s ease-in-out',
-          zIndex: 1,
+            position: 'absolute',
+            top: '2px',
+            bottom: '2px',
+            width: '50%',
+            backgroundColor: '#007bff',
+            borderRadius: '18px',
+            transition: 'left 0.3s ease-in-out',
+            zIndex: 1,
         }
-      };
-    
-      // Dynamic button styling
-        let buttonStyle = { ...styles.clearButton };
-        let buttonText = 'Choose a PDF file'; // Default text
-        let onClickAction = triggerFileInput;
-        let isDisabled = false;
-    
-        if (pdfFile) {
-            buttonText = 'Clear Current PDF';
-            onClickAction = onClearPdf;
+    };
+
+    // Dynamic button styling
+    let buttonStyle = { ...styles.clearButton };
+    let buttonText = 'Choose a PDF file'; // Default text
+    let onClickAction = triggerFileInput;
+    let isDisabled = false;
+
+    if (pdfFile) {
+        buttonText = 'Clear Current PDF';
+        onClickAction = onClearPdf;
+        buttonStyle.backgroundColor = '#ffdddd';
+        buttonStyle.color = '#333';
+        buttonStyle.border = '1px solid #ffaaaa';
+        isDisabled = false;
+
+        if (processing) {
+            buttonText = `Processing${dots}`;
+            // Subtle animation during processing
+            buttonStyle.animation = 'subtlePulse 1.5s infinite';
+            isDisabled = true;
+        } else if (uploadError) {
+            buttonText = 'Clear PDF & Retry';
+            onClickAction = () => {  // Correctly resets for retry
+                onClearPdf();
+                triggerFileInput();
+            }
+            buttonStyle.backgroundColor = '#ffdddd'; // Keep consistent with Clear
+            buttonStyle.color = '#333';
+            buttonStyle.border = '1px solid #ffaaaa';
+            isDisabled = false;
+        } else if (results !== null) { //Success
             buttonStyle.backgroundColor = '#ffdddd';
             buttonStyle.color = '#333';
             buttonStyle.border = '1px solid #ffaaaa';
             isDisabled = false;
-    
-            if (processing) {
-                buttonText = `Processing${dots}`;
-                // Subtle animation during processing
-                buttonStyle.animation = 'subtlePulse 1.5s infinite';
-                isDisabled = true;
-            } else if (uploadError) {
-                buttonText = 'Clear PDF & Retry';
-                onClickAction = () => {  // Correctly resets for retry
-                    onClearPdf();
-                    triggerFileInput();
-                }
-                buttonStyle.backgroundColor = '#ffdddd'; // Keep consistent with Clear
-                buttonStyle.color = '#333';
-                buttonStyle.border = '1px solid #ffaaaa';
-                isDisabled = false;
-            } else if (results !== null) { //Success
-                buttonStyle.backgroundColor = '#ffdddd';
-                buttonStyle.color = '#333';
-                buttonStyle.border = '1px solid #ffaaaa';
-                isDisabled = false;
-            }
         }
-    
-        // Keyframes for the subtle pulse animation
-        const keyframes = `@keyframes subtlePulse {
+    }
+
+    // Keyframes for the subtle pulse animation
+    const keyframes = `@keyframes subtlePulse {
                 0% { background-color: #e0e0e0; }      /* Slightly lighter gray */
                 50% { background-color: #d0d0d0; }     /* Even lighter gray */
                 100% { background-color: #e0e0e0; }    /* Back to slightly lighter */
@@ -285,6 +305,20 @@ function UploadPDF({ onResultsUpdate, toggleGraphView, pdfFile, onPdfUpload, onC
         <div style={styles.container}>
             <style>{keyframes}</style>
             <div style={styles.innerBox}>
+                {usingSeedFromResults && (
+                    <div style={{
+                        backgroundColor: '#1A3A5F',
+                        padding: '10px',
+                        borderRadius: '5px',
+                        marginBottom: '15px',
+                        color: '#F7F3E9',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center'
+                    }}>
+                        <span>You are using a returned result as your seed paper</span>
+                    </div>
+                )}
                 {/* Mode toggle */}
                 <div style={styles.switchContainer}>
                     <div
@@ -349,7 +383,7 @@ function UploadPDF({ onResultsUpdate, toggleGraphView, pdfFile, onPdfUpload, onC
                         <div style={styles.contentArea}>
                             {previewUrl && (
                                 <div style={styles.viewerArea}>
-                                    <h3 style={{margin: '0 0 10px 0', fontSize: '16px'}}>PDF Preview:</h3>
+                                    <h3 style={{ margin: '0 0 10px 0', fontSize: '16px' }}>PDF Preview:</h3>
                                     <PDFViewer url={previewUrl} />
                                 </div>
                             )}

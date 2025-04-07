@@ -1,374 +1,337 @@
 import React, { useEffect, useState, useRef } from 'react';
 import ForceGraph2D from 'react-force-graph-2d';
-import * as d3 from 'd3-force';
+import * as d3 from 'd3-force'; // Ensure d3-force is imported
 
-function NodeGraph({ results, toggleGraphView }) {
+// Accept props from ParentDashboard
+function NodeGraph({ results, toggleGraphView, onNodeHover, onNodeClick }) {
+    // State for graph data, dimensions, and hover information
     const [graphData, setGraphData] = useState({ nodes: [], links: [] });
     const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
+    // ---- State to store the currently hovered node's info ----
+    const [hoveredNodeInfo, setHoveredNodeInfo] = useState(null); // Stores the node object
+
+    // Refs for container and force graph instance
     const containerRef = useRef(null);
     const fgRef = useRef(null);
 
+    // Component Styles
     const styles = {
         container: {
-            width: '75%',
-            height: '95vh',
-            padding: '2rem',
+            width: '100%',
+            height: '100%',
             boxSizing: 'border-box',
             overflow: 'hidden',
-        },
-        header: {
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '1rem'
-        },
-        title: {
-            fontSize: '24px',
-            margin: 0
-        },
-        button: {
-            padding: '8px 16px',
-            backgroundColor: '#4CAF50',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
-            cursor: 'pointer'
+            backgroundColor: '#0F2741',
+            position: 'relative', // Needed for absolute positioning of children
         },
         legendContainer: {
             position: 'absolute',
-            top: '100px',
-            right: '30px',
-            backgroundColor: 'rgba(255, 255, 255, 0.8)',
-            padding: '10px',
+            top: '20px',
+            right: '20px',
+            backgroundColor: 'rgba(255, 255, 255, 0.9)',
+            padding: '12px',
             borderRadius: '5px',
             border: '1px solid #ddd',
-            zIndex: 1000
+            zIndex: 1000,
+            boxShadow: '0 3px 10px rgba(0, 0, 0, 0.2)',
+            fontFamily: '"Source Sans Pro", sans-serif',
+        },
+        legendHeader: {
+            margin: '0 0 10px 0',
+            fontFamily: '"Montserrat", sans-serif',
+            fontWeight: '600',
+            fontSize: '16px',
         },
         legendItem: {
             display: 'flex',
             alignItems: 'center',
-            marginBottom: '5px'
+            marginBottom: '8px',
+            fontSize: '14px',
         },
         legendColor: {
             width: '15px',
             height: '15px',
-            marginRight: '5px',
-            borderRadius: '50%'
+            marginRight: '8px',
+            borderRadius: '50%',
+            border: '1px solid rgba(0,0,0,0.1)'
+        },
+        // ---- Styling for the hover text box ----
+        hoverTextBox: {
+            position: 'absolute',
+            bottom: '20px',
+            right: '20px',
+            backgroundColor: 'rgba(0, 0, 0, 0.75)',
+            color: 'white',
+            padding: '8px 12px',
+            borderRadius: '4px',
+            fontSize: '12px',
+            maxWidth: '250px',
+            zIndex: 1010,
+            pointerEvents: 'none', // Allows clicks to pass through
+            fontFamily: '"Source Sans Pro", sans-serif',
+            lineHeight: '1.4',
+            opacity: 1,
+            transition: 'opacity 0.2s ease-in-out', // Optional fade effect
+        },
+        hoverTextBoxHidden: { // Style for hiding the text box
+             opacity: 0,
         }
     };
 
-    // Update dimensions on mount and window resize
+    // Effect to update dimensions on mount and resize
     useEffect(() => {
         const updateDimensions = () => {
             if (containerRef.current) {
                 const { width, height } = containerRef.current.getBoundingClientRect();
-                // Account for padding and other elements
-                setDimensions({
-                    width: width - 40, // Subtract padding from container
-                    height: height - 80 // Subtract header and padding
-                });
+                setDimensions({ width: width, height: height });
             }
         };
-
-        // Initialize dimensions
         updateDimensions();
-
-        // Add resize listener
         window.addEventListener('resize', updateDimensions);
-
-        // Clean up
         return () => window.removeEventListener('resize', updateDimensions);
     }, []);
 
+    // Effect to process results data and create graph nodes/links
     useEffect(() => {
-        if (!results || !results.similarity_results) {
+        if (!results?.test?.compared_papers) {
             setGraphData({ nodes: [], links: [] });
-            console.warn('No data being passed to NodeGraph component');
+            console.warn('NodeGraph: results.test.compared_papers not found or invalid.');
             return;
         }
 
-        // Create nodes and links
-        const nodes = [];
-        const links = [];
+        const nodes = []; const links = [];
+        const seedTitle = results.title || results.seed_paper?.paper_info?.title || "Seed Paper";
+        nodes.push({ id: "seed_paper", name: seedTitle, val: 25, color: "#FF5733", isSeed: true });
 
-        // Add seed paper as central node
-        nodes.push({
-            id: "seed_paper",
-            name: results.title || results.seed_paper?.paper_info?.title || "Seed Paper",
-            val: 25, // Larger size for seed paper
-            color: "#FF5733", // Distinctive color for seed paper
-            isSeed: true
-        });
-
-        // Process similarity results and sort by similarity score descending
-        const sortedPapers = [...results.test.compared_papers].sort((a, b) => 
-            (b.similarity_score || 0) - (a.similarity_score || 0)
-        );
+        const papersToCompare = Array.isArray(results.test.compared_papers) ? results.test.compared_papers : [];
+        const sortedPapers = [...papersToCompare].sort((a, b) => (b?.similarity_score ?? 0) - (a?.similarity_score ?? 0));
 
         sortedPapers.forEach((paper, index) => {
-            // Get a unique ID for the paper
+            if (!paper || !paper.paper_info) return;
             const paperId = `paper_${index}`;
+            let color = "#3498DB";
+            const sourceType = paper.source_info?.search_type;
+            if (sourceType === "core_methodology") color = "#2ECC71";
+            else if (sourceType === "conceptual_angles") color = "#9B59B6";
+            else if (sourceType === "poisonPill") color = "#E74C3C";
 
-            // Determine color based on source type
-            let color = "#3498DB"; // Default blue color
+            // Calculate normalized distance (using your original logic)
+             let normalizedDistance;
+             const maxIndexForGentleCurve = 20;
+             const totalCompared = sortedPapers.length;
+             if (totalCompared <= 1) { normalizedDistance = 0; }
+             else if (index < maxIndexForGentleCurve) { normalizedDistance = (index / Math.max(1, maxIndexForGentleCurve - 1)) * 0.3; }
+             else { const denominator = Math.max(1, totalCompared - maxIndexForGentleCurve); const progress = (index - maxIndexForGentleCurve) / denominator; normalizedDistance = 0.3 + Math.pow(progress, 0.6) * 0.7; }
+             normalizedDistance = Math.max(0, Math.min(1, normalizedDistance));
 
-            if (paper.source_info) {
-                const sourceType = paper.source_info.search_type;
-
-                // Color mapping for different search types
-                if (sourceType === "core_methodology") {
-                    color = "#2ECC71"; // Green for core methodology
-                } else if (sourceType === "conceptual_angles") {
-                    color = "#9B59B6"; // Purple for conceptual angles
-                } else if (sourceType === "poisonPill") {
-                    color = "#E74C3C"; // Red for poison pill papers
-                }
-            }
-
-            // Calculate normalized distance based on rank
-            // This ensures a more predictable distribution based on rank
-            // Using a steeper curve that accelerates distance after top 10
-            let normalizedDistance;
-            if (index < 20) {
-                // First 10 papers - gentle curve
-                normalizedDistance = (index / 20) * 0.3;
-            } else {
-                // Papers after top 10 - steeper curve
-                normalizedDistance = 0.3 + Math.pow((index - 20) / (sortedPapers.length - 20), 0.6) * 0.7;
-            }
-
-            // Create node
             nodes.push({
                 id: paperId,
-                name: paper.paper_info?.title || `Paper ${index + 1}`,
-                val: 10, // Smaller size for related papers
+                name: paper.paper_info.title || `Paper ${index + 1}`,
+                val: 10, // Base size value
                 color: color,
-                similarity: paper.similarity_score || 0.5, // Default if undefined
-                sourceType: paper.source_info?.search_type || "unknown",
-                rank: index, // Store the rank based on similarity
-                normalizedDistance: normalizedDistance // Store for use in force layout
+                similarity: paper.similarity_score ?? 0,
+                sourceType: sourceType || "unknown",
+                rank: index,
+                normalizedDistance: normalizedDistance,
+                paperIndex: index, // Index for list linking
+                paper: paper       // Full paper data
             });
 
-            // Create link
             links.push({
                 source: "seed_paper",
                 target: paperId,
-                similarity: paper.similarity_score || 0.5, // Default if undefined
-                width: Math.max(1, (paper.similarity_score || 0.5) * 5), // Link width based on similarity
+                similarity: paper.similarity_score ?? 0,
+                width: Math.max(1, (paper.similarity_score ?? 0.5) * 5),
                 color: color
             });
         });
-
         setGraphData({ nodes, links });
     }, [results]);
 
-    // Update force simulation to better represent similarity distances
-    useEffect(() => {
-        if (fgRef.current && graphData.nodes.length > 0) {
-            // Use the dynamically calculated dimensions
-            const graphWidth = dimensions.width;
-            const graphHeight = dimensions.height;
-            
-            // Configure link force with rank-based distance calculation
-            const linkForce = fgRef.current.d3Force('link');
-            if (linkForce) {
-                linkForce
-                    .distance(link => {
-                        // For non-seed nodes, use the normalizedDistance
-                        if (link.source === "seed_paper" || link.target === "seed_paper") {
-                            const node = link.source === "seed_paper" ? 
-                                graphData.nodes.find(n => n.id === link.target) : 
-                                graphData.nodes.find(n => n.id === link.source);
-                            
-                            if (node && node.normalizedDistance !== undefined) {
-                                // Use a steeper scaling to emphasize differences
-                                // Top 10 papers close, then rapid increase
-                                return 150 + Math.pow(node.normalizedDistance, 0.8) * 700;
-                            }
-                        }
-                        return 300; // Default fallback
-                    })
-                    .strength(link => {
-                        // Stronger links for more similar nodes
-                        if (link.source === "seed_paper" || link.target === "seed_paper") {
-                            const node = link.source === "seed_paper" ? 
-                                graphData.nodes.find(n => n.id === link.target) : 
-                                graphData.nodes.find(n => n.id === link.source);
-                            
-                            if (node && node.normalizedDistance !== undefined) {
-                                // Decrease strength more rapidly as rank increases
-                                return Math.max(0.05, 1 - node.normalizedDistance * 1.5);
-                            }
-                        }
-                        return 0.3; // Default fallback
-                    });
-            }
-            
-            // Configure charge force for better separation
-            const chargeForce = fgRef.current.d3Force('charge');
-            if (chargeForce) {
-                chargeForce.strength(-800); // Further increased repulsion between nodes
-            }
-            
-            // Use radial force primarily for organizing by rank
-            fgRef.current.d3Force('radial', d3.forceRadial()
-                .radius(d => {
-                    if (d.isSeed) return 0; // Seed paper at center
-                    
-                    // Use normalizedDistance for predictable radial placement
-                    if (d.normalizedDistance !== undefined) {
-                        // More dramatic scaling with distinct grouping
-                        if (d.rank < 10) {
-                            // Top 10 papers - closer together
-                            return d.normalizedDistance * Math.min(graphWidth, graphHeight) * 0.7;
-                        } else {
-                            // Papers after top 10 - spread more aggressively
-                            return (0.3 + d.normalizedDistance * 0.7) * Math.min(graphWidth, graphHeight) * 0.9;
-                        }
-                    }
-                    return 300; // Default fallback
-                })
-                .strength(1.5) // Increased strength for more deterministic layout
-                .x(graphWidth / 2)
-                .y(graphHeight / 2)
-            );
-            
-            // Add collision force to prevent overlap
-            fgRef.current.d3Force('collision', d3.forceCollide()
-                .radius(d => Math.sqrt(d.val) * 2 + 10) // Increased collision radius
-                .strength(1.0) // Maximum strength
-            );
-            
-            // Reheat the simulation with high alpha for complete reorganization
-            fgRef.current.d3ReheatSimulation(1.0);
-        }
-    }, [graphData, dimensions]); // Add dimensions as dependency
+    // Effect to configure D3 force simulation
+     useEffect(() => {
+         // Use the CORRECTED structure from the previous response (Response #20)
+         // Ensure calculations using 'node' or 'd' are INSIDE the callbacks
+         if (fgRef.current && graphData.nodes.length > 1) {
+             const graphWidth = dimensions.width;
+             const graphHeight = dimensions.height;
 
-    // Define node rendering
+             const linkForce = fgRef.current.d3Force('link');
+             if (linkForce) {
+                 linkForce
+                     .distance(link => { /* PASTE YOUR ORIGINAL distance logic using 'node' HERE */
+                        const node = link.source === "seed_paper" ? graphData.nodes.find(n => n.id === link.target) : graphData.nodes.find(n => n.id === link.source);
+                        if (node && typeof node.normalizedDistance === 'number') { return 150 + Math.pow(node.normalizedDistance, 0.8) * 700; }
+                        return 300;
+                      })
+                     .strength(link => { /* PASTE YOUR ORIGINAL strength logic using 'node' HERE */
+                        const node = link.source === "seed_paper" ? graphData.nodes.find(n => n.id === link.target) : graphData.nodes.find(n => n.id === link.source);
+                        if (node && typeof node.normalizedDistance === 'number') { return Math.max(0.05, 1 - node.normalizedDistance * 1.5); }
+                        return 0.3;
+                      });
+             }
+
+             const chargeForce = fgRef.current.d3Force('charge');
+             if (chargeForce) { chargeForce.strength(-800); /* Your charge */ }
+
+             if (d3.forceRadial) {
+                 fgRef.current.d3Force('radial', d3.forceRadial()
+                     .radius(d => { /* PASTE YOUR ORIGINAL radius logic using 'd' HERE */
+                         if (d.isSeed) return 0; if (typeof d.normalizedDistance === 'number') { const minDim = Math.min(graphWidth, graphHeight); if (d.rank < 10) { return d.normalizedDistance * minDim * 0.7; } else { return (0.3 + d.normalizedDistance * 0.7) * minDim * 0.9; } } return 300;
+                      })
+                     .strength(1.5).x(graphWidth / 2).y(graphHeight / 2)); /* Your strength/center */
+             }
+
+             if (d3.forceCollide) {
+                 fgRef.current.d3Force('collision', d3.forceCollide()
+                     .radius(d => { /* PASTE YOUR ORIGINAL collision radius logic using 'd' HERE */ return Math.sqrt(d.val) * 2 + 10; })
+                     .strength(1.0)); /* Your strength */
+             }
+
+             fgRef.current.d3ReheatSimulation(1.0); // Your alpha
+         }
+     }, [graphData, dimensions]);
+
+    // Function to define how nodes are drawn
     const nodeCanvasObject = (node, ctx, globalScale) => {
-        const nodeR = Math.sqrt(node.val) * 2;
+        const baseNodeR = Math.sqrt(node.val) * 2;
+        const isHovered = fgRef.current?.hoverNode === node;
+        // Apply subtle scaling on hover (optional)
+        let drawRadius = isHovered && !node.isSeed ? baseNodeR * 1.10 : baseNodeR;
 
-        // Draw node circle
+        // Draw main circle
         ctx.beginPath();
-        ctx.fillStyle = node.color;
-        ctx.arc(node.x, node.y, nodeR, 0, 2 * Math.PI);
+        ctx.arc(node.x, node.y, drawRadius, 0, 2 * Math.PI, false);
+        ctx.fillStyle = node.color || 'grey';
         ctx.fill();
 
-        // Draw outline for seed paper
+        // Draw seed outline (using base radius)
         if (node.isSeed) {
+            ctx.strokeStyle = '#fff';
+            ctx.lineWidth = 1.5 / globalScale;
             ctx.beginPath();
-            ctx.strokeStyle = '#000';
-            ctx.lineWidth = 1.5;
-            ctx.arc(node.x, node.y, nodeR, 0, 2 * Math.PI);
+            ctx.arc(node.x, node.y, baseNodeR, 0, 2 * Math.PI, false);
             ctx.stroke();
         }
 
-        // Draw rank number above each non-seed node
-        if (!node.isSeed) {
-            const rankLabel = `#${node.rank + 1}`; // +1 because rank is zero-based
-            ctx.font = '10px Sans-Serif';
-            ctx.textAlign = 'center';
-            ctx.fillStyle = 'black';
-            
-            // Add white background for better readability
-            const textWidth = ctx.measureText(rankLabel).width;
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-            ctx.fillRect(node.x - textWidth / 2 - 2, node.y - nodeR - 15, textWidth + 4, 14);
-            
-            // Draw the rank number
-            ctx.fillStyle = 'black';
-            ctx.fillText(rankLabel, node.x, node.y - nodeR - 5);
-        }
-        
-        // Only show similarity score on hover
-        if (!node.isSeed && node === fgRef.current?.hoverNode) {
-            const simLabel = node.similarity ? (node.similarity.toFixed(4)) : "";
-            ctx.font = '10px Sans-Serif';
-            ctx.textAlign = 'center';
-            ctx.fillStyle = 'black';
-            ctx.fillText(simLabel, node.x, node.y - nodeR - 5);
-        }
-
-        // Only draw node label if the node is being hovered over
-        if (node === fgRef.current?.hoverNode) {
-            const label = node.name;
-            const fontSize = node.isSeed ? 14 : 12;
-
+        // Draw Rank Label (using drawRadius for position)
+        const labelThreshold = 5;
+        if (!node.isSeed && (globalScale > labelThreshold || graphData.nodes.length < 50)) {
+            const rankLabel = `#${node.rank + 1}`;
+            const fontSize = Math.max(6, 9 / globalScale);
             ctx.font = `${fontSize}px Sans-Serif`;
-            ctx.textAlign = 'center';
-            ctx.textBaseline = 'middle';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            const labelY = node.y - drawRadius - (fontSize / 2 + 2 / globalScale);
+            const textWidth = ctx.measureText(rankLabel).width;
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.fillRect(node.x - textWidth / 2 - 1 / globalScale, labelY - fontSize / 2 - 1 / globalScale, textWidth + 2 / globalScale, fontSize + 2 / globalScale);
+            ctx.fillStyle = 'black'; ctx.fillText(rankLabel, node.x, labelY);
+        }
 
-            // Draw background for text
+        // Draw Hover Label (using drawRadius for position)
+        if (isHovered) {
+            const label = node.name || '';
+            const fontSize = Math.max(8, 12 / globalScale);
+            ctx.font = `${fontSize}px Sans-Serif`;
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            const labelY = node.y + drawRadius + fontSize * 0.8;
             const textWidth = ctx.measureText(label).width;
-            ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
-            ctx.fillRect(node.x - textWidth / 2 - 2, node.y + nodeR + 2, textWidth + 4, fontSize + 4);
-
-            // Draw text
-            ctx.fillStyle = 'black';
-            ctx.fillText(label, node.x, node.y + nodeR + fontSize / 2 + 4);
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.7)'; // Background
+            ctx.fillRect(node.x - textWidth / 2 - 2, labelY - fontSize/2 - 2 , textWidth + 4, fontSize + 4);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)'; // Text
+            ctx.fillText(label, node.x, labelY);
         }
     };
 
-    // Legend component
-    const Legend = () => (
-        <div style={styles.legendContainer}>
-            <h4 style={{ margin: '0 0 10px 0' }}>Paper Types</h4>
-            <div style={styles.legendItem}>
-                <div style={{ ...styles.legendColor, backgroundColor: '#FF5733' }}></div>
-                <span>Seed Paper</span>
-            </div>
-            <div style={styles.legendItem}>
-                <div style={{ ...styles.legendColor, backgroundColor: '#2ECC71' }}></div>
-                <span>Core Methodology</span>
-            </div>
-            <div style={styles.legendItem}>
-                <div style={{ ...styles.legendColor, backgroundColor: '#9B59B6' }}></div>
-                <span>Conceptual Angles</span>
-            </div>
-            <div style={styles.legendItem}>
-                <div style={{ ...styles.legendColor, backgroundColor: '#E74C3C' }}></div>
-                <span>Poison Pill</span>
-            </div>
-            <div style={styles.legendItem}>
-                <div style={{ ...styles.legendColor, backgroundColor: '#3498DB' }}></div>
-                <span>Other</span>
-            </div>
-        </div>
-    );
+    // Handler for node hover events
+    const handleNodeHover = (node) => {
+        // Update local state for the hover text box display
+        setHoveredNodeInfo(node); // Store node object or null
 
+        // Call parent handler for list scrolling
+        if (typeof onNodeHover === 'function') {
+            onNodeHover(node ? node.paperIndex : null);
+        }
+        // Update cursor
+        if (containerRef.current) {
+            containerRef.current.style.cursor = node ? 'pointer' : 'grab';
+        }
+    };
+
+    // Handler for node click events
+    const handleNodeClick = (node) => {
+        // Call parent handler for enhanced view
+       if (node && !node.isSeed && typeof onNodeClick === 'function') {
+            onNodeClick(node.paper); // Pass paper object
+       }
+    };
+
+    // Legend component definition
+    const Legend = () => (
+         <div style={styles.legendContainer}>
+             <h4 style={styles.legendHeader}>Paper Types</h4>
+              {[ /* Your legend items */
+                 { color: '#FF5733', label: 'Seed Paper' },
+                 { color: '#2ECC71', label: 'Core Methodology' },
+                 { color: '#9B59B6', label: 'Conceptual Angles' },
+                 { color: '#E74C3C', label: 'Poison Pill' },
+                 { color: '#3498DB', label: 'Other' },
+              ].map(item => (
+                 <div key={item.label} style={styles.legendItem}>
+                     <div style={{ ...styles.legendColor, backgroundColor: item.color }}></div>
+                     <span>{item.label}</span>
+                 </div>
+              ))}
+         </div>
+     );
+
+    // Render the component
     return (
         <div ref={containerRef} style={styles.container}>
-
-
-            <Legend />
+            {graphData.nodes.length > 1 && <Legend />}
 
             {dimensions.width > 0 && dimensions.height > 0 && (
                 <ForceGraph2D
                     ref={fgRef}
                     graphData={graphData}
-                    nodeRelSize={1}
-                    linkWidth={link => link.width}
-                    linkColor={link => link.color}
-                    nodeCanvasObject={nodeCanvasObject}
-                    nodePointerAreaPaint={(node, color, ctx) => {
-                        const nodeR = Math.sqrt(node.val) * 2;
-                        ctx.fillStyle = color;
-                        ctx.beginPath();
-                        ctx.arc(node.x, node.y, nodeR + 5, 0, 2 * Math.PI);
-                        ctx.fill();
-                    }}
-                    cooldownTicks={250}  // Increased for better stabilization
                     width={dimensions.width}
                     height={dimensions.height}
-                    onResize={() => {
-                        // Force graph reheat on resize
-                        if (fgRef.current) {
-                            fgRef.current.d3ReheatSimulation();
-                        }
-                    }}
+                    backgroundColor="white"
+                    nodeRelSize={1}
+                    nodeCanvasObject={nodeCanvasObject}
+                    linkWidth={link => link.width}
+                    linkColor={link => link.color || '#ffffff44'}
+                    nodePointerAreaPaint={(node, color, ctx) => {
+                         const nodeR = Math.sqrt(node.val) * 2;
+                         ctx.fillStyle = color; ctx.beginPath();
+                         ctx.arc(node.x, node.y, nodeR + 6, 0, 2 * Math.PI, false);
+                         ctx.fill();
+                     }}
+                    onNodeHover={handleNodeHover} // Use updated handler
+                    onNodeClick={handleNodeClick} // Use click handler
+                    cooldownTicks={250}
+                    enableNodeDrag={false} // Keep dragging disabled
+                    enablePointerInteraction={true}
+                    enableZoomPanInteraction={true}
                 />
             )}
-        </div>
+
+            {/* Hover Text Box - Rendered conditionally */}
+            <div style={{
+                 ...styles.hoverTextBox,
+                 // Apply hidden style if no valid node is hovered
+                 ...( (!hoveredNodeInfo || hoveredNodeInfo.isSeed) && styles.hoverTextBoxHidden )
+             }}>
+                 {/* Only render text if a valid (non-seed) node is hovered */}
+                {hoveredNodeInfo && !hoveredNodeInfo.isSeed && (
+                    <>
+                        Click For Enhanced Paper view for: <br />
+                        <strong>{hoveredNodeInfo.name}</strong> {/* Display hovered node name */}
+                    </>
+                )}
+            </div>
+
+        </div> // End container div
     );
 }
 
